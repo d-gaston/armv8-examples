@@ -1,42 +1,42 @@
 .text            
 .global _start
 
-	/********************
-	 * Syscall format
-	 * x8 - syscall number
-	 * If there are args:
-	 * x0 - first argument
-	 * x1 - second argument
-	 * x2 - third argument
-	 * and so on
-	 *********************/
+    /********************
+     * Syscall format
+     * x8 - syscall number
+     * If there are args:
+     * x0 - first argument
+     * x1 - second argument
+     * x2 - third argument
+     * and so on
+     *********************/
 _start:
 
-	/********************
-	 * a main label is included so that 
+    /********************
+     * a main label is included so that 
      * gdb can be used for debugging 
-	 *********************/
+     *********************/
 main:
-	/**************************
-	 * Program overview:
+    /**************************
+     * Program overview:
      * An overview an example usage
      * of the write syscall
-	 **************************/
+     **************************/
 
 
 
-	/********************
-	 * Write syscall
-	 * syscall number: 0x40 (64)
-	 * first arg: file descriptor 
-	 *    1 is the fd for stdout
-	 * second arg: pointer to string
-	 *    here it is stored in message
-	 * third arg: num of chars to print
-	 *    here it's the length of message
-	 *********************/
-	 
-	 
+    /********************
+     * Write syscall
+     * syscall number: 0x40 (64)
+     * first arg: file descriptor 
+     *    1 is the fd for stdout
+     * second arg: pointer to string
+     *    here it is stored in message
+     * third arg: num of chars to print
+     *    here it's the length of message
+     *********************/
+     
+     
     mov x0, #1
     /********************
      * Difference between ldr and mov:
@@ -56,15 +56,15 @@ main:
     ldr x2, =len
     mov x8, 0x40
     /********************
-	 * This tells the OS to execute the syscall
-	 *********************/
+     * This tells the OS to execute the syscall
+     *********************/
     svc 0
 
-	/********************
-	 * Exit syscall
-	 * syscall number: 0x5d (93)
-	 * no arguments
-	 *********************/
+    /********************
+     * Exit syscall
+     * syscall number: 0x5d (93)
+     * no arguments
+     *********************/
     mov x8, #93
     svc 0
     
