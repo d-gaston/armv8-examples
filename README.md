@@ -25,3 +25,6 @@ Here are some commands you'll want to know:
 + **q** quit
 
 Pressing enter at a blank prompt causes the previously executed command to run again. This can save a lot of typing.
+
+# armsim.py
+This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, and prompt.s
