@@ -69,8 +69,7 @@ main:
      * Exit syscall
      *********************/
     mov x8, #93
-    svc 0
-    
+    svc 0  
 
 .data
 message: .asciz "hello world\n"
