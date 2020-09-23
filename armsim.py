@@ -14,8 +14,15 @@ instructions and a map of symbols, respectively. Then
 it attempts to execute each line of code by matching against
 regular expressions that encode the instruction format, and
 updating global variables appropriately based on that execution.
-
+All text is converted to lower case.
 Currently supported:
+  Labels:
+    Can be any text (current no numbers) prepended with
+    any number of periods or underscores and should end in 
+    a colon. The same label cannot be declared twice. Since 
+    text is converted to lowercase, LABEL: and label: would 
+    count as the same. Labels must be declared on their OWN 
+    line.
   Directives:
     .data    (declare a region of initialized data)
     .bss     (declare a region of unitialized data)
@@ -38,7 +45,6 @@ Comments (Must NOT be on same line as stuff you want read into the program):
   /*
   text
   */
-
 '''
 #list to hold the instructions
 asm = []
@@ -184,7 +190,7 @@ of unsupported instructions will throw the same error.
 -the current regex will match illegal register names, so a
 KeyError exception will be thrown
 '''
-def execute(line):
+def execute(line:str):
     global pc,n,z
     #remove spaces around commas
     line = re.sub('[ ]*,[ ]*',',',line)
@@ -281,6 +287,8 @@ if(len(labels)>len(set(labels))):raise ValueError("You can't declare the same la
 #main loop
 while pc != len(asm):
     line=asm[pc]
+    #if a label in encountered, inc pc and skip
+    if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
     execute(line)
     reg['xzr'] = 0
     pc+=1

@@ -20,19 +20,15 @@ main:
      * print a message 10 times
      **************************/
     
-    /******************
-     * Our counter will be
-     * kept in x4
-     ******************/
-     mov x4, #10
+
  /***************
-  * Declare a label .loop: that
+  * Declare a label .begin: that
   * we will jump to. Labels can generally
   * be used to jump anywhere in the program
   * For example, let's use a jump to avoid
   * this call to exit:
   ***************/
-    b .loop
+    b .begin
 
     /********************
      * Exit syscall
@@ -41,11 +37,18 @@ main:
     svc 0
     
  /***************
-  * Thanks to b .loop
+  * Thanks to b .begin
   * our program arrives here
   * and avoids the premature
   * exit
   ****************/
+  
+.begin:
+    /******************
+     * Our counter will be
+     * kept in x4
+     ******************/
+     mov x4, #10
 .loop:
     /********************
      * Write syscall
