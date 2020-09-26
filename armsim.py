@@ -1,5 +1,6 @@
 import re
 import sys
+import os
 '''
 *******************
 * ArmSim Overview *
@@ -14,7 +15,8 @@ instructions and a map of symbols, respectively. Then
 it attempts to execute each line of code by matching against
 regular expressions that encode the instruction format, and
 updating global variables appropriately based on that execution.
-All text is converted to lower case.
+All text is converted to lower case, meaning that indentifiers 
+are not case sensitive (so variable = VARIABLE).
 Currently supported:
   Labels:
     Can be any text (current no numbers) prepended with
@@ -46,6 +48,9 @@ Comments (Must NOT be on same line as stuff you want read into the program):
   text
   */
 '''
+'''
+Global state variables
+'''
 #list to hold the instructions
 asm = []
 #list to represent the stack
@@ -65,26 +70,33 @@ comment = False
 code = False
 data = False
 bss = False
+
 '''
-A map of string to int, where int will either be a literal
-such as the length of a string or an index into the static
-mem array.
+A map of string to int, where int will either be
+an index into the static_mem array or a size in bytes.
+Basically, vars declared with a : will be addresses and
+vars declared with = will be literals
 '''
-sym_lookup = {}
+sym_table = {}
 '''
-For storing string data as a list. It is accessed with an index
-and a size using the format [addr:addr+size].
+Static data is stored as a list. Each element is an int that represents a byte. 
+String data gets "converted" by doing list(bytes(str,'ascii')) and numbers 
+get converted into a list from their byte representation using list(int.tobytes()).
+It is accessed with an index and a size using the format [addr:addr+size].
 '''
 static_mem = []
 '''
-This is a counter that is used to assign an "address" to a symbol.
-Basically the value in sym_lookup when a key is one of the user
-defined variables. It's incremented for every variable encountered
+This is a counter that is used to assign an "address" in static_mem
+to a symbol. Basically the value in sym_table when a key is one of 
+the user defined variables. It's incremented for every variable encountered
+by the size of the data stored in static_mem
 '''
 index = 0
+
+
 '''
 This loop reads the lines of the .s file and populates the
-sym_lookup, static_mem, and asm data structures. It uses
+sym_table, static_mem, and asm data structures. It uses
 boolean flags to determine which datastructure is currently
 being populated. These flags change upon encountering specific
 keywords. Those keywords are .data or .bss for declaring constants
@@ -94,8 +106,11 @@ is needed for using gdb
 '''
 with open(sys.argv[1], 'r') as f:
     for line in f.readlines():
-        #line = line.rstrip()
-        line =line.lower().strip()
+		#Don't convert string literals to lower case, so split on quote
+		#and everything to the left becomes lower
+        line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
+        line = line.strip()
+        #print(line)
         #convert multiple spaces into one space 
         line = re.sub('[ \t]+',' ',line) 
         if('/*' in line and '*/' in line):continue
@@ -108,25 +123,28 @@ with open(sys.argv[1], 'r') as f:
         if(code and not comment and len(line)>0):asm.append(line)
         if((data or bss) and not comment):
             #remove quotes and whitespace surrouding punctuation 
+            #spaces following colons and quotes are not touched so
+            #that string literals are not altered
             line = re.sub('["]','',line)
-            line = re.sub('[ ]*:[ ]*',':',line)
-            line = re.sub('[ ]*\.[ ]*','.',line)
+            line = re.sub('[ ]*:',':',line)
+            line = re.sub('[ ]*\.','.',line)
             line = re.sub('[ ]*-[ ]*','-',line)
             line = re.sub('[ ]*=[ ]*','=',line)
             '''
             When encountering something like s: .asciz "a"
-            we want to make s a new key in the sym_lookup dict and 
+            we want to make s a new key in the sym_table dict and 
             set its value equal to the second element after
             splitting on the string ":.asciz". Additionally
             we save the length of the string in a "shadow entry"
-            in sym_lookup in case someone wants to find the length
-            using the -. idiom
+            in sym_table in case someone wants to find the length
+            using the -. idiom. The string gets converted to bytes
+            before it is written to static_mem
             '''
             if(re.match('.*:\.asciz.*',line)):
                 line = line.split(":.asciz ")
-                sym_lookup[line[0]] = index
-                sym_lookup[line[0]+"_SIZE_"] = len(line[1])
-                static_mem.extend(list(line[1]))
+                sym_table[line[0]] = index
+                sym_table[line[0]+"_SIZE_"] = len(line[1])
+                static_mem.extend(list(bytes(line[1],'ascii')))
                 index+=len(list(line[1]))
                 continue
             '''
@@ -134,44 +152,48 @@ with open(sys.argv[1], 'r') as f:
             We first check if a previously declared variable is being
             used to determine the size. If so we fetch it and use that,
             otherwise we just use the number provided. We append a list
-            with n junk values to static_mem where n is the size we found
+            with n zero values to static_mem where n is the size we found
+            Additionally, the size is stored in a shadow entry
             '''
             if(re.match('.*:\.space.*',line)):
                 line = line.split(":.space ")
-                sym_lookup[line[0]] = index
-                if(line[1] in sym_lookup):
-                    size = sym_lookup[line[1]]
-                    static_mem.extend(list('0'*size))
+                sym_table[line[0]] = index
+                if(line[1] in sym_table):
+                    size = sym_table[line[1]]
+                    static_mem.extend(list([0]*size))
                     index+=size
-                    sym_lookup[line[0]+"_SIZE_"] = size
+                    sym_table[line[0]+"_SIZE_"] = size
                 else:
                     size = int(line[1])
-                    static_mem.extend(list('0'*size))
+                    static_mem.extend(list([0]*size))
                     index+=size
-                    sym_lookup[line[0]+"_SIZE_"] = size
+                    sym_table[line[0]+"_SIZE_"] = size
                 continue    
             '''
             If using the len=.-str idiom to store str length, we
-            lookup the length of str that we stored in sym_lookup
+            lookup the length of str that we stored in sym_table
             dict when handling .asciz in the format str_SIZE_ 
             '''         
             if(re.match('(.)+=.-(.)+',line)):
                 line = line.split("=.-")
-                if(line[1] not in sym_lookup):
+                if(line[1] not in sym_table):
+                    print(sym_table)
                     raise KeyError("Can't find length of undeclared variable "+line[1])
-                sym_lookup[line[0]] = sym_lookup[line[1]+"_SIZE_"]
+                sym_table[line[0]] = sym_table[line[1]+"_SIZE_"]
                 continue
             '''
             This is for when constants are declared with the = sign
-            Do the same lookup procedure as above, else just assign
-            to the provided constant
+            If assigning an existing value, look it up in the sym_table
+            and if it's not there, then assume a number is being assigned. 
             '''
             if(re.match('(.)+=[a-z0-9]+',line)):
                 line = line.split("=")
-                if(line[1] in sym_lookup):
-                    sym_lookup[line[0]] = sym_lookup[line[1]]
+                value = 0
+                if(line[1] in sym_table):
+                    sym_table[line[0]] = sym_table[line[1]]
                 else:
-                    sym_lookup[line[0]] = int(line[1])  
+                    sym_table[line[0]] = int(line[1])  
+
 '''
 This procedure dispatches and executes the provided line
 of assembly code. In order to deal with the myriad
@@ -199,29 +221,37 @@ def execute(line:str):
     '''
     ldr instructions
     '''
-    #ldr rd,=<var>
+    #ldr rd, =<var>
     if(re.match('ldr x[0-9]+,=[a-z]+$',line)):
         rd = re.findall('x[0-9]+',line)[0]
         var = re.findall('=[a-z]+',line)[0][1:]
-        reg[rd] = sym_lookup[var]
+        reg[rd] = sym_table[var]
+        return
+    #ldr rd, [rn]>
+    if(re.match('ldr x[0-9]+,\[x[0-9]+\]',line)):
+        rd = re.findall('x[0-9]+',line)[0]
+        rn = re.findall('x[0-9]+',line)[1]
+        addr = reg[rn]
+        #load 8 bytes starting at addr and convert to int
+        reg[rd] = int.from_bytes(bytes(static_mem[addr:addr+8]),'little')
         return
     '''
     mov instructions
     '''
-    #mov rd,imm
+    #mov rd, imm
     if(re.match('mov x[0-9]+,(?:0x)?[0-9a-f]+$',line)):
         rd = re.findall('x[0-9]+',line)[0]
         imm = int(re.findall('(?:0x)?[0-9a-f]+$',line)[0],0)
         reg[rd] = imm
         return
-    #mov rd,rn
+    #mov rd, rn
     if(re.match('mov x[0-9]+,x[0-9]+$',line)):
         rd = re.findall('x[0-9]+',line)[0]
         rn = re.findall('x[0-9]+',line)[1]
         reg[rd] = reg[rn]
         return
     '''
-    sub/s instructions
+    arithmetic instructions
     '''
     #sub rd, rn, imm
     if(re.match('sub x[0-9]+,x[0-9]+,(?:0x)?[0-9a-f]+$',line)):
@@ -230,6 +260,44 @@ def execute(line:str):
         imm = int(re.findall('(?:0x)?[0-9a-f]+$',line)[0],0)
         reg[rd] = reg[rn] - imm
         return
+    #For now treat un/signed division the same, since everything
+    #is signed in python
+    #(u)div rd, rn, rm
+    if(re.match('u?div x[0-9]+,x[0-9]+,x[0-9]+$',line)):
+        rd = re.findall('x[0-9]+',line)[0]
+        rn = re.findall('x[0-9]+',line)[1]
+        rm = re.findall('x[0-9]+',line)[2]
+        #IMPORTANT: use integer division, not floating point
+        reg[rd] = reg[rn] // reg[rm]
+        return
+    #msub rd, rn, rm, ra
+    if(re.match('msub x[0-9]+,x[0-9]+,x[0-9]+,x[0-9]+$',line)):
+        rd = re.findall('x[0-9]+',line)[0]
+        rn = re.findall('x[0-9]+',line)[1]
+        rm = re.findall('x[0-9]+',line)[2]
+        ra = re.findall('x[0-9]+',line)[3]
+        reg[rd] = reg[ra] - reg[rn] * reg[rm]
+        return
+    '''
+    compare instructions
+    '''
+    #cmp rn, rm
+    if(re.match('cmp x[0-9]+,x[0-9]+$',line)):
+        rn = re.findall('x[0-9]+',line)[0]
+        rm = re.findall('x[0-9]+',line)[1]
+        z = True if reg[rn] == reg[rm] else False
+        n = True if reg[rn] < reg[rm] else False
+        return
+    '''
+    logical instructions
+    '''
+    #and rd, rn, imm
+    if(re.match('and x[0-9]+,x[0-9]+,(?:0x)?[0-9a-f]+$',line)):
+        rd = re.findall('x[0-9]+',line)[0]
+        rn = re.findall('x[0-9]+',line)[1]
+        imm = int(re.findall('(?:0x)?[0-9a-f]+$',line)[0],0)
+        reg[rd] = reg[rn] & imm    
+        return 
     '''
     branch instructions
     '''
@@ -246,6 +314,18 @@ def execute(line:str):
         label = re.findall('[._]*[a-z]+',line)[1]
         pc = asm.index(label+':')
         return
+    #b.lt <label>
+    if(re.match('b\.lt [._]*[a-z]+$',line)):
+        #the third match is the label
+        label = re.findall('[._]*[a-z]+',line)[2]
+        if(n): pc=asm.index(label+':')
+        return
+    #b.gt <label>
+    if(re.match('b\.gt [._]*[a-z]+$',line)):
+        #the third match is the label
+        label = re.findall('[._]*[a-z]+',line)[2]
+        if(not z and not n): pc=asm.index(label+':')
+        return
     '''
     system call handler
     Currently supported: Read and write to stdin/stdout
@@ -254,11 +334,11 @@ def execute(line:str):
     if(re.match('svc[ ]+0',line)):
         syscall = int(reg['x8'])
         if(syscall==93):sys.exit()
+        #write
         if(syscall==64):
             length = reg['x2']
             addr = reg['x1']
-            output = static_mem[addr:addr+length]
-            output = ''.join(output)
+            output = bytes(static_mem[addr:addr+length]).decode('ascii')
             #if there is a newline char in the output,
             #remove it and print normally, else print
             #with no newline
@@ -267,6 +347,7 @@ def execute(line:str):
                 print(output)
             else:
                 print(output, end='') 
+        #read
         if(syscall==63):
             length = reg['x2']
             addr = reg['x1']
@@ -274,8 +355,17 @@ def execute(line:str):
             enter+='\n'
             #truncate input based on # of chars read
             enter = enter[:length]
-            static_mem[addr:addr+len(enter)] = list(enter)
+            #store as bytes, not string
+            static_mem[addr:addr+len(enter)] = list(bytes(enter,'ascii'))
+            #return value is # of bytes read
             reg['x0'] = len(enter)
+        #getrandom
+        if(syscall==278):
+            addr = reg['x0']
+            quantity = reg['x1']
+            #the number of random bytes requested is written to static_mem
+            static_mem[addr:addr+quantity] = list(os.urandom(quantity))
+            reg['x0'] = quantity  
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
            

@@ -15,6 +15,7 @@ _start:
  *   cmp:  compare
  *   b.lt: branch less than
  *   b.gt: branch greather than
+ *   and:  logical and
  *****************/
 
 main:
@@ -166,7 +167,7 @@ ghLen = .-guessHigh
 guessLow: .asciz "Too low! Try again\n"
 glLen = .-guessLow
 
-equal: .asciz "Congradulations! You guessed it!\n"
+equal: .asciz "Congratulations! You guessed it!\n"
 eLen = .-equal
 
 .bss
