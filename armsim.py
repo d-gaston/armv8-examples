@@ -18,6 +18,10 @@ updating global variables appropriately based on that execution.
 All text is converted to lower case, meaning that indentifiers 
 are not case sensitive (so variable = VARIABLE).
 Currently supported:
+  System Calls:
+    read      0x3f  (63) --stdin only
+    write     0x40  (64) --stdout only
+    getrandom 0x116 (278)
   Labels:
     Can be any text (current no numbers) prepended with
     any number of periods or underscores and should end in 
@@ -33,12 +37,19 @@ Currently supported:
     .space   (declare an empty buffer)
     =        (assignment of a variable to a constant value)
   Instructions:
-    ldr rd,=<var>
-    mov rd,imm
-    mov rd,rn
-    sub rd, rn, imm
-    cbnz <label>
-    b <label>
+    ldr   rd,=<var>
+    ldr   rd,[rn]
+    mov   rd,imm
+    mov   rd,rn
+    sub   rd, rn, imm
+    udiv  rd, rn, rm
+    msub  rd, rn, rm, ra
+    and   rd, rn, imm
+    cmp   rn, rm
+    cbnz  <label>
+    b     <label>
+    b.gt  <label>
+    b.lt  <label>
     svc 0 (system call)
 
 Comments (Must NOT be on same line as stuff you want read into the program):
