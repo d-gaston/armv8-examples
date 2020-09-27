@@ -10,13 +10,14 @@ executing a compiled .s file. It attempts to be compatible
 with the format of gnu assembler files and supports a subset
 of the instructions and directives. The basic operation of
 the simulator is that it first reads in a .s file line by 
-line and parses the code and directives into a list of 
-instructions and a map of symbols, respectively. Then
-it attempts to execute each line of code by matching against
-regular expressions that encode the instruction format, and
-updating global variables appropriately based on that execution.
-All text is converted to lower case, meaning that indentifiers 
-are not case sensitive (so variable = VARIABLE).
+line and separates the input into code and symbol declarations. 
+The data in static memory is simulated with a python list, where
+each element represents one byte as an int. It attempts to execute 
+each line of code by matching against regular expressions that encode 
+the instruction format, and updating global variables appropriately 
+based on that execution. All text is converted to lower case, 
+meaning that indentifiers are not case sensitive 
+(so variable = VARIABLE).
 Currently supported:
   System Calls:
     read      0x3f  (63) --stdin only
@@ -37,20 +38,24 @@ Currently supported:
     .space   (declare an empty buffer)
     =        (assignment of a variable to a constant value)
   Instructions:
-    ldr   rd,=<var>
-    ldr   rd,[rn]
-    mov   rd,imm
-    mov   rd,rn
-    sub   rd, rn, imm
-    udiv  rd, rn, rm
-    msub  rd, rn, rm, ra
-    and   rd, rn, imm
-    cmp   rn, rm
-    cbnz  <label>
-    b     <label>
-    b.gt  <label>
-    b.lt  <label>
-    svc 0 (system call)
+    ldr     rd,=<var>
+    ldr     rd,[rn]
+    mov     rd,imm
+    mov     rd,rn
+    sub{s}  rd, rn, imm
+    sub{s}  rd, rn, rm
+    add{s}  rd, rn, imm
+    add{s}  rd, rn, rm
+    udiv    rd, rn, rm
+    msub    rd, rn, rm, ra
+    and     rd, rn, imm
+    cmp     rn, rm
+    cbnz    <label>
+    cbz     <label>
+    b       <label>
+    b.gt    <label>
+    b.lt    <label>
+    svc 0   
 
 Comments (Must NOT be on same line as stuff you want read into the program):
   //text
@@ -59,6 +64,7 @@ Comments (Must NOT be on same line as stuff you want read into the program):
   text
   */
 '''
+
 '''
 Global state variables
 '''
@@ -121,7 +127,6 @@ with open(sys.argv[1], 'r') as f:
 		#and everything to the left becomes lower
         line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
         line = line.strip()
-        #print(line)
         #convert multiple spaces into one space 
         line = re.sub('[ \t]+',' ',line) 
         if('/*' in line and '*/' in line):continue
@@ -134,7 +139,7 @@ with open(sys.argv[1], 'r') as f:
         if(code and not comment and len(line)>0):asm.append(line)
         if((data or bss) and not comment):
             #remove quotes and whitespace surrouding punctuation 
-            #spaces following colons and quotes are not touched so
+            #spaces following colons and periods are not touched so
             #that string literals are not altered
             line = re.sub('["]','',line)
             line = re.sub('[ ]*:',':',line)
@@ -188,7 +193,6 @@ with open(sys.argv[1], 'r') as f:
             if(re.match('(.)+=.-(.)+',line)):
                 line = line.split("=.-")
                 if(line[1] not in sym_table):
-                    print(sym_table)
                     raise KeyError("Can't find length of undeclared variable "+line[1])
                 sym_table[line[0]] = sym_table[line[1]+"_SIZE_"]
                 continue
@@ -220,7 +224,7 @@ Notes:
 will be properly converted
 -Error message is very general, so any syntax errors or use 
 of unsupported instructions will throw the same error.
--the current regex will match illegal register names, so a
+-The current regex will match illegal register names, so a
 KeyError exception will be thrown
 '''
 def execute(line:str):
@@ -230,18 +234,27 @@ def execute(line:str):
     #octothorpe is optional, remove it
     line = re.sub('#','',line) 
     '''
+    regexes
+    '''
+
+    rg = '(?:xzr|x[0-9]+)'
+    #immediates will always be the final operand so the $ is necessary
+    num = '(?:0x[0-9a-f]+|[0-9]+)$'
+    var = '[a-z]+'
+    lab = '[._]*[a-z]+'
+    '''
     ldr instructions
     '''
     #ldr rd, =<var>
-    if(re.match('ldr x[0-9]+,=[a-z]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        var = re.findall('=[a-z]+',line)[0][1:]
-        reg[rd] = sym_table[var]
+    if(re.match('ldr {},={}'.format(rg,var),line)):
+        rd = re.findall(rg,line)[0]
+        v = re.findall('='+var,line)[0][1:]
+        reg[rd] = sym_table[v]
         return
     #ldr rd, [rn]>
-    if(re.match('ldr x[0-9]+,\[x[0-9]+\]',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        rn = re.findall('x[0-9]+',line)[1]
+    if(re.match('ldr {},\[{}\]'.format(rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
         addr = reg[rn]
         #load 8 bytes starting at addr and convert to int
         reg[rd] = int.from_bytes(bytes(static_mem[addr:addr+8]),'little')
@@ -250,52 +263,85 @@ def execute(line:str):
     mov instructions
     '''
     #mov rd, imm
-    if(re.match('mov x[0-9]+,(?:0x)?[0-9a-f]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        imm = int(re.findall('(?:0x)?[0-9a-f]+$',line)[0],0)
+    if(re.match('mov {},{}'.format(rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        imm = int(re.findall(num,line)[0],0)
         reg[rd] = imm
         return
     #mov rd, rn
-    if(re.match('mov x[0-9]+,x[0-9]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        rn = re.findall('x[0-9]+',line)[1]
+    if(re.match('mov {},{}'.format(rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
         reg[rd] = reg[rn]
         return
     '''
     arithmetic instructions
     '''
-    #sub rd, rn, imm
-    if(re.match('sub x[0-9]+,x[0-9]+,(?:0x)?[0-9a-f]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        rn = re.findall('x[0-9]+',line)[1]
-        imm = int(re.findall('(?:0x)?[0-9a-f]+$',line)[0],0)
+    #add{s} rd, rn, imm
+    if(re.match('adds? {},{},{}'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
+        reg[rd] = reg[rn] + imm
+        if('adds' in line):
+            n = True if(reg[rd] < 0) else False
+            z = True if(reg[rd] == 0) else False        
+        return
+    #add{s} rd, rn, rm
+    if(re.match('adds? {},{},{}'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        reg[rd] = reg[rn] + reg[rm]
+        if('adds' in line):
+            n = True if(reg[rd] < 0) else False
+            z = True if(reg[rd] == 0) else False        
+        return
+    #sub{s} rd, rn, imm
+    if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
         reg[rd] = reg[rn] - imm
+        if('subs' in line):
+            n = True if(reg[rd] < 0) else False
+            z = True if(reg[rd] == 0) else False
+        return
+    #sub{s} rd, rn, rm
+    if(re.match('subs? {},{},{}'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        reg[rd] = reg[rn] - reg[rm]
+        if('subs' in line):
+            n = True if(reg[rd] < 0) else False
+            z = True if(reg[rd] == 0) else False
         return
     #For now treat un/signed division the same, since everything
     #is signed in python
     #(u)div rd, rn, rm
-    if(re.match('u?div x[0-9]+,x[0-9]+,x[0-9]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        rn = re.findall('x[0-9]+',line)[1]
-        rm = re.findall('x[0-9]+',line)[2]
+    if(re.match('u?div {},{},{}'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
         #IMPORTANT: use integer division, not floating point
         reg[rd] = reg[rn] // reg[rm]
         return
     #msub rd, rn, rm, ra
-    if(re.match('msub x[0-9]+,x[0-9]+,x[0-9]+,x[0-9]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        rn = re.findall('x[0-9]+',line)[1]
-        rm = re.findall('x[0-9]+',line)[2]
-        ra = re.findall('x[0-9]+',line)[3]
+    if(re.match('msub {},{},{},{}'.format(rg,rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        ra = re.findall(rg,line)[3]
         reg[rd] = reg[ra] - reg[rn] * reg[rm]
         return
     '''
     compare instructions
     '''
     #cmp rn, rm
-    if(re.match('cmp x[0-9]+,x[0-9]+$',line)):
-        rn = re.findall('x[0-9]+',line)[0]
-        rm = re.findall('x[0-9]+',line)[1]
+    if(re.match('cmp {},{}'.format(rg,rg),line)):
+        rn = re.findall(rg,line)[0]
+        rm = re.findall(rg,line)[1]
         z = True if reg[rn] == reg[rm] else False
         n = True if reg[rn] < reg[rm] else False
         return
@@ -303,46 +349,53 @@ def execute(line:str):
     logical instructions
     '''
     #and rd, rn, imm
-    if(re.match('and x[0-9]+,x[0-9]+,(?:0x)?[0-9a-f]+$',line)):
-        rd = re.findall('x[0-9]+',line)[0]
-        rn = re.findall('x[0-9]+',line)[1]
-        imm = int(re.findall('(?:0x)?[0-9a-f]+$',line)[0],0)
+    if(re.match('and {},{},{}$'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
         reg[rd] = reg[rn] & imm    
         return 
     '''
     branch instructions
     '''
     #cbnz <label>
-    if(re.match('cbnz x[0-9]+,[._]*[a-z]+$',line)):
-        rn = re.findall('x[0-9]+',line)[0]
+    if(re.match('cbnz {},{}'.format(rg,lab),line)):
+        rn = re.findall(rg,line)[0]
         #the third match is the label
-        label = re.findall('[._]*[a-z]+',line)[2]
+        label = re.findall(lab,line)[2]
         if(reg[rn] != 0):pc = asm.index(label+':') 
         return
+    #cbz <label>
+    if(re.match('cbz {},{}'.format(rg,lab),line)):
+        rn = re.findall(rg,line)[0]
+        #the third match is the label
+        label = re.findall(lab,line)[2]
+        if(reg[rn] == 0):pc = asm.index(label+':') 
+        return
     #b <label>
-    if(re.match('b [._]*[a-z]+$',line)):
+    if(re.match('b {}'.format(lab),line)):
         #the second match is the label
-        label = re.findall('[._]*[a-z]+',line)[1]
+        label = re.findall(lab,line)[1]
         pc = asm.index(label+':')
         return
     #b.lt <label>
-    if(re.match('b\.lt [._]*[a-z]+$',line)):
+    if(re.match('b\.lt {}'.format(lab),line)):
         #the third match is the label
-        label = re.findall('[._]*[a-z]+',line)[2]
+        label = re.findall(lab,line)[2]
         if(n): pc=asm.index(label+':')
         return
     #b.gt <label>
-    if(re.match('b\.gt [._]*[a-z]+$',line)):
+    if(re.match('b\.gt {}'.format(lab),line)):
         #the third match is the label
-        label = re.findall('[._]*[a-z]+',line)[2]
+        label = re.findall(lab,line)[2]
         if(not z and not n): pc=asm.index(label+':')
         return
     '''
     system call handler
-    Currently supported: Read and write to stdin/stdout
+    Currently supported: Read and write to stdin/stdout, getrandom
     '''
     #svc 0
-    if(re.match('svc[ ]+0',line)):
+    if(re.match('svc 0',line)):
         syscall = int(reg['x8'])
         if(syscall==93):sys.exit()
         #write
@@ -393,3 +446,4 @@ while pc != len(asm):
     execute(line)
     reg['xzr'] = 0
     pc+=1
+
