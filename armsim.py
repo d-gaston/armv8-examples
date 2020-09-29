@@ -443,17 +443,18 @@ def execute(line:str):
             reg['x0'] = quantity  
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
- 
-def main():
-	global pc
-	with open(sys.argv[1], 'r') as f:
-		parse(f.readlines())
+def run():
 	while pc != len(asm):
 		line=asm[pc]
 		#if a label in encountered, inc pc and skip
 		if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
 		execute(line)
 		reg['xzr'] = 0
-		pc+=1
+		pc+=1	 
+def main():
+	global pc
+	with open(sys.argv[1], 'r') as f:
+		parse(f.readlines())
+    run()
 if __name__ == "__main__":
 	main()
