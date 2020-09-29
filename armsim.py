@@ -38,6 +38,9 @@ Currently supported:
     .space   (declare an empty buffer)
     =        (assignment of a variable to a constant value)
   Instructions:
+    **{s} means that 's' can be optionally added to the end of an
+    instruction to make the result affect the flags**
+    
     ldr     rd,=<var>
     ldr     rd,[rn]
     mov     rd,imm
@@ -57,6 +60,7 @@ Currently supported:
     b.lt    <label>
     svc 0   
 
+    
 Comments (Must NOT be on same line as stuff you want read into the program):
   //text
   /*text*/
@@ -82,11 +86,6 @@ pc = 0
 n = False 
 #zero flag
 z = False 
-#booleans for parsing .s file
-comment = False
-code = False
-data = False
-bss = False
 
 '''
 A map of string to int, where int will either be
@@ -102,17 +101,12 @@ get converted into a list from their byte representation using list(int.tobytes(
 It is accessed with an index and a size using the format [addr:addr+size].
 '''
 static_mem = []
-'''
-This is a counter that is used to assign an "address" in static_mem
-to a symbol. Basically the value in sym_table when a key is one of 
-the user defined variables. It's incremented for every variable encountered
-by the size of the data stored in static_mem
-'''
-index = 0
+
 
 
 '''
-This loop reads the lines of the .s file and populates the
+This procedure reads the lines of a program (which can be a .s file
+or just a list of assembly instructions) and populates the
 sym_table, static_mem, and asm data structures. It uses
 boolean flags to determine which datastructure is currently
 being populated. These flags change upon encountering specific
@@ -121,8 +115,22 @@ and buffers and main: for code. Although this diverges from the
 standard it forces people to put a main label in their code, which
 is needed for using gdb
 '''
-with open(sys.argv[1], 'r') as f:
-    for line in f.readlines():
+
+def parse(lines)->None:
+    #booleans for parsing .s file
+    comment = False
+    code = False
+    data = False
+    bss = False	
+    '''
+    This is a counter that is used to assign an "address" in static_mem
+    to a symbol. Basically the value in sym_table when a key is one of 
+    the user defined variables. It's incremented for every variable encountered
+    by the size of the data stored in static_mem
+    '''
+    index = 0
+    
+    for line in lines:
 		#Don't convert string literals to lower case, so split on quote
 		#and everything to the left becomes lower
         line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
@@ -208,13 +216,16 @@ with open(sys.argv[1], 'r') as f:
                     sym_table[line[0]] = sym_table[line[1]]
                 else:
                     sym_table[line[0]] = int(line[1])  
-
+    #verify that labels have not be redeclared
+    labels = [l for l in asm if(re.match('[._]*[a-z]+:',l))]
+    if(len(labels)>len(set(labels))):raise ValueError("You can't declare the same label more than once")
 '''
 This procedure dispatches and executes the provided line
 of assembly code. In order to deal with the myriad
 addressing modes, a regex method is used to match
-the line to the appropriate action.The procedure returns after 
-executing the matched instruction. If no match is
+the line to the appropriate action. Once an instruction is matched,
+the arguments are extracted with regular epressions.The procedure 
+returns after executing the matched instruction. If no match is
 found an exception is thrown. Both hexadecimal
 and decimal immediate values are supported. The register
 naming convention is rd for destination register, rn
@@ -432,18 +443,17 @@ def execute(line:str):
             reg['x0'] = quantity  
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
-           
-    
-#verify that labels have not be redeclared
-labels = [l for l in asm if(re.match('[._]*[a-z]+:',l))]
-if(len(labels)>len(set(labels))):raise ValueError("You can't declare the same label more than once")
-
-#main loop
-while pc != len(asm):
-    line=asm[pc]
-    #if a label in encountered, inc pc and skip
-    if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
-    execute(line)
-    reg['xzr'] = 0
-    pc+=1
-
+ 
+def main():
+	global pc
+	with open(sys.argv[1], 'r') as f:
+		parse(f.readlines())
+	while pc != len(asm):
+		line=asm[pc]
+		#if a label in encountered, inc pc and skip
+		if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
+		execute(line)
+		reg['xzr'] = 0
+		pc+=1
+if __name__ == "__main__":
+	main()
