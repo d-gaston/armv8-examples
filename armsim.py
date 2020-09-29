@@ -121,7 +121,7 @@ def parse(lines)->None:
     comment = False
     code = False
     data = False
-    bss = False	
+    bss = False 
     '''
     This is a counter that is used to assign an "address" in static_mem
     to a symbol. Basically the value in sym_table when a key is one of 
@@ -131,8 +131,8 @@ def parse(lines)->None:
     index = 0
     
     for line in lines:
-		#Don't convert string literals to lower case, so split on quote
-		#and everything to the left becomes lower
+        #Don't convert string literals to lower case, so split on quote
+        #and everything to the left becomes lower
         line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
         line = line.strip()
         #convert multiple spaces into one space 
@@ -444,17 +444,30 @@ def execute(line:str):
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
 def run():
-	while pc != len(asm):
-		line=asm[pc]
-		#if a label in encountered, inc pc and skip
-		if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
-		execute(line)
-		reg['xzr'] = 0
-		pc+=1	 
+    global pc
+    while pc != len(asm):
+        line=asm[pc]
+        #if a label in encountered, inc pc and skip
+        if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
+        execute(line)
+        reg['xzr'] = 0
+        pc+=1
+def repl():
+    print('repl')
+    return
+def debug():
+    print('debug')
+    return
 def main():
-	global pc
-	with open(sys.argv[1], 'r') as f:
-		parse(f.readlines())
-    run()
+    if(not sys.argv[1:]):
+        repl()
+    else:
+        _file = next(arg for arg in sys.argv if arg.endswith('.s'))
+        with open(_file,'r') as f:
+            parse(f.readlines())
+        if(any('--debug' in arg for arg in sys.argv)):
+            debug()
+        else:
+            run()
 if __name__ == "__main__":
-	main()
+    main()
