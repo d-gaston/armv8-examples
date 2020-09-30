@@ -53,8 +53,8 @@ Currently supported:
     msub    rd, rn, rm, ra
     and     rd, rn, imm
     cmp     rn, rm
-    cbnz    <label>
-    cbz     <label>
+    cbnz    rn, <label>
+    cbz     rn, <label>
     b       <label>
     b.gt    <label>
     b.lt    <label>
@@ -369,14 +369,14 @@ def execute(line:str):
     '''
     branch instructions
     '''
-    #cbnz <label>
+    #cbnz rn,<label>
     if(re.match('cbnz {},{}'.format(rg,lab),line)):
         rn = re.findall(rg,line)[0]
         #the third match is the label
         label = re.findall(lab,line)[2]
         if(reg[rn] != 0):pc = asm.index(label+':') 
         return
-    #cbz <label>
+    #cbz rn, <label>
     if(re.match('cbz {},{}'.format(rg,lab),line)):
         rn = re.findall(rg,line)[0]
         #the third match is the label
@@ -443,8 +443,13 @@ def execute(line:str):
             reg['x0'] = quantity  
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
+    
+'''
+This procedure runs the code normally to the end
+'''
 def run():
     global pc
+    print(asm)
     while pc != len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
@@ -452,11 +457,97 @@ def run():
         execute(line)
         reg['xzr'] = 0
         pc+=1
+'''
+Simple REPL for testing instructions. Limited to instructions that
+only affect registers (no memory access or jumps). Prints the flags
+and affected registers after executing each instruction.
+'''
 def repl():
-    print('repl')
+    print('armsim repl. operations on memory not supported\ntype q to quit')
+    instr = ''
+    while(True):
+        instr = input('>> ').lower()
+        if(instr.startswith('q')):break
+        #if enter is pressed with no input skip the rest
+        if(not instr):continue
+        try:
+            execute(instr)
+            for r in set(re.findall('x[0-9]+',instr)):
+                print("{}: {}".format(r,reg[r]))
+                print("Z: {} N: {}".format(z,n))   
+        except ValueError as e:
+            print(e)
     return
+'''
+Simple debugger interface for running a .s file. Commands are
+p flags      print flags
+p x1 x2..xn  print all registers listed
+q            quit
+n            next instruction
+ls           list program with line numbers
+b  <num>     breakpoint at line number
+rb <num      remove breakpoint at line number
+c            continue to next breakpoint
+h            help
+'''
 def debug():
-    print('debug')
+    global pc
+    cmd = ''
+    prevcmd = ''
+    breakpoints = set()
+    while(True):
+        line = asm[pc]
+        cmd = input('> ').lower()
+        if(not cmd and prevcmd):
+            cmd = prevcmd
+        elif(cmd.startswith('q')):break
+        elif(cmd.startswith('p ')):
+            for r in set(re.findall('x[0-9]+',cmd)):
+                print("{}: {}".format(r,reg[r]))
+            if('flags' in cmd):
+                print("Z: {} N: {}".format(z,n))
+        elif(cmd.startswith('n')):
+            #if a label in encountered, inc pc and skip
+            if(re.match('[._]*[a-z]+:$',line)):pc+=1;print(line);continue
+            execute(line)
+            print(line)
+            pc+=1           
+        elif(cmd.startswith('b ')):
+            breakpoints.add(int(re.findall('[0-9]+',cmd)[0]))
+        elif(cmd.startswith('rb ')):
+            breakpoints.remove(int(re.findall('[0-9]+',cmd)[0]))
+        #Should continue until breakpoint but not execute it
+        elif(cmd.startswith('c')):
+            if(breakpoints):
+                while(pc not in breakpoints):
+                    #if a label in encountered, inc pc and skip
+                    if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
+                    execute(line)
+                    pc+=1
+                    line = asm[pc]
+                print("break at {}: {}".format(pc,line))           
+        elif(cmd.startswith('h')):
+            print("simple debugger interface for armsim. commands are\n"
+                 +"  p flags      print flags\n"
+                 +"  p x1 x2..xn  print all registers listed\n"
+                 +"  q            quit\n"
+                 +"  n            next instruction\n"
+                 +"  ls           list program with line numbers\n"
+                 +"  b  <num>     breakpoint at line number\n"
+                 +"  rb <num>     remove breakpoint at line number\n"
+                 +"  c            continue to next breakpoint\n"
+                 +"  <enter>      execute previous command\n"
+                 +"  h            help")
+        elif(cmd.startswith('ls')):
+            for i in range(0,len(asm)):
+                if(i==pc):
+                    #print arrow on current line
+                    print("->{}: {}".format(i,asm[i]))
+                else:
+                    print("  {}: {}".format(i,asm[i]))
+        else:
+            print("command not recognized")
+        prevcmd = cmd
     return
 def main():
     if(not sys.argv[1:]):
@@ -469,5 +560,6 @@ def main():
             debug()
         else:
             run()
+            print(reg['x0'])
 if __name__ == "__main__":
     main()
