@@ -131,9 +131,6 @@ def parse(lines)->None:
     index = 0
     
     for line in lines:
-        #Don't convert string literals to lower case, so split on quote
-        #and everything to the left becomes lower
-        line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
         line = line.strip()
         #convert multiple spaces into one space 
         line = re.sub('[ \t]+',' ',line) 
@@ -144,12 +141,11 @@ def parse(lines)->None:
         if(".data" in line):data = True;code = False;bss = False;continue
         if(".bss" in line):data = False;code = False;bss = True;continue
         if("main:" in line):code = True;data = False;bss = False;continue
-        if(code and not comment and len(line)>0):asm.append(line)
+        if(code and not comment and len(line)>0):line = line.lower();asm.append(line)
         if((data or bss) and not comment):
             #remove quotes and whitespace surrouding punctuation 
             #spaces following colons and periods are not touched so
             #that string literals are not altered
-            line = re.sub('["]','',line)
             line = re.sub('[ ]*:',':',line)
             line = re.sub('[ ]*\.','.',line)
             line = re.sub('[ ]*-[ ]*','-',line)
@@ -165,6 +161,11 @@ def parse(lines)->None:
             before it is written to static_mem
             '''
             if(re.match('.*:\.asciz.*',line)):
+                #Don't convert string literals to lower case, so split on quote
+                #and everything to the left becomes lower
+                line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
+                #remove quote characters
+                line = re.sub('["]','',line)			
                 line = line.split(":.asciz ")
                 sym_table[line[0]] = index
                 sym_table[line[0]+"_SIZE_"] = len(line[1])
@@ -180,6 +181,7 @@ def parse(lines)->None:
             Additionally, the size is stored in a shadow entry
             '''
             if(re.match('.*:\.space.*',line)):
+                line = line.lower()
                 line = line.split(":.space ")
                 sym_table[line[0]] = index
                 if(line[1] in sym_table):
@@ -199,6 +201,7 @@ def parse(lines)->None:
             dict when handling .asciz in the format str_SIZE_ 
             '''         
             if(re.match('(.)+=.-(.)+',line)):
+                line = line.lower()
                 line = line.split("=.-")
                 if(line[1] not in sym_table):
                     raise KeyError("Can't find length of undeclared variable "+line[1])
@@ -210,6 +213,7 @@ def parse(lines)->None:
             and if it's not there, then assume a number is being assigned. 
             '''
             if(re.match('(.)+=[a-z0-9]+',line)):
+                line = line.lower()
                 line = line.split("=")
                 value = 0
                 if(line[1] in sym_table):
@@ -449,7 +453,6 @@ This procedure runs the code normally to the end
 '''
 def run():
     global pc
-    print(asm)
     while pc != len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
