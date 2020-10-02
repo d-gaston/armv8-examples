@@ -32,15 +32,19 @@ Currently supported:
     line.
   Directives:
     .data    (declare a region of initialized data)
+        .asciz   (declare a string in the .data section)
+        . -      (find the length of the previously declared item within the .data section)
+        =        (assignment of a variable to a constant value within the .data section)
     .bss     (declare a region of unitialized data)
-    .asciz   (declare a string)
-    . -      (find the length of the previously declared item)
-    .space   (declare an empty buffer)
-    =        (assignment of a variable to a constant value)
+        .space   (declare an empty buffer in the .bss section)
+
   Instructions:
     **{s} means that 's' can be optionally added to the end of an
     instruction to make the result affect the flags**
-    
+    rd = destination register
+    rn = first register operand
+    rm = second register operand
+    imm = immediate value (aka a number)
     ldr     rd,=<var>
     ldr     rd,[rn]
     mov     rd,imm
@@ -491,6 +495,7 @@ ls           list program with line numbers
 b  <num>     breakpoint at line number
 rb <num      remove breakpoint at line number
 c            continue to next breakpoint
+<enter>      repeat previous command
 h            help
 '''
 def debug():
@@ -503,7 +508,7 @@ def debug():
         cmd = input('> ').lower()
         if(not cmd and prevcmd):
             cmd = prevcmd
-        elif(cmd.startswith('q')):break
+        if(cmd.startswith('q')):break
         elif(cmd.startswith('p ')):
             for r in set(re.findall('x[0-9]+',cmd)):
                 print("{}: {}".format(r,reg[r]))
