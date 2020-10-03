@@ -266,7 +266,7 @@ def execute(line:str):
     #immediates will always be the final operand so the $ is necessary
     num = '(?:0x[0-9a-f]+|[0-9]+)$'
     var = '[a-z]+'
-    lab = '[.]*[a-z_]+'
+    lab = '[.]*[0-9a-z_]+'
     '''
     ldr instructions
     '''
@@ -302,6 +302,18 @@ def execute(line:str):
     '''
     arithmetic instructions
     '''
+    #asr rd, rn, imm
+    if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
+        reg[rd] = reg[rn] - imm
+    #lsl rd, rn, imm
+    if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
+        reg[rd] = reg[rn] - imm
     #add{s} rd, rn, imm
     if(re.match('adds? {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
