@@ -8,7 +8,7 @@ Run a program with `python armsim.py <program>.s`
     write      0x40  (64) --stdout only
     getrandom  0x116 (278)
 ### Labels:
-Can be any text (current no numbers) prepended with any number of periods or underscores and should end in a colon. The same label cannot be declared twice. Since text is converted to lowercase, LABEL: and label: would count as the same. Labels must be declared on their ***OWN*** line.
+Can start with zero or more periods followed by any number of numbers, letters, or underscores (regex: [.]*[a-z_]+). The same label cannot be declared twice. Since text is converted to lowercase, LABEL: and label: would count as the same. Labels must be declared on their ***OWN*** line.
 ### Directives:
 Directives are information for an assembler. These aren't needed for writing simple programs to test out instructions
 * .data    (declare a region of initialized data)
@@ -33,15 +33,22 @@ Directives are information for an assembler. These aren't needed for writing sim
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
     udiv    rd, rn, rm
+    sdiv    rd, rn, rm
+    mul     rd, rn, rm
     msub    rd, rn, rm, ra
-    and     rd, rn, imm
+    madd    rd, rn, rm, ra
+    and{s}  rd, rn, imm
+    orr{s}  rd, rn, imm
+    eor{s}  rd, rn, imm
     cmp     rn, rm
     cbnz    rn, <label>
     cbz     rn, <label>
     b       <label>
     b.gt    <label>
     b.lt    <label>
-    svc 0   
+    b.eq    <label>
+    b.ne    <label>
+    svc 0     
 
     
 ### Comments 

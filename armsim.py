@@ -54,14 +54,21 @@ Currently supported:
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
     udiv    rd, rn, rm
+    sdiv    rd, rn, rm
+    mul     rd, rn, rm
     msub    rd, rn, rm, ra
-    and     rd, rn, imm
+    madd    rd, rn, rm, ra
+    and{s}  rd, rn, imm
+    orr{s}  rd, rn, imm
+    eor{s}  rd, rn, imm
     cmp     rn, rm
     cbnz    rn, <label>
     cbz     rn, <label>
     b       <label>
     b.gt    <label>
     b.lt    <label>
+    b.eq    <label>
+    b.ne    <label>
     svc 0   
 
     
@@ -87,9 +94,9 @@ reg = {'sp':1000,'lr':0,'x0':0,'x1':0,'x2':0,'x3':0,'x4':0,'x5':0,'x6':0,'x7':0,
 #program counter
 pc = 0
 #negative flag
-n = False 
+n_flag = False 
 #zero flag
-z = False 
+z_flag = False 
 
 '''
 A map of string to int, where int will either be
@@ -169,7 +176,7 @@ def parse(lines)->None:
                 #and everything to the left becomes lower
                 line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
                 #remove quote characters
-                line = re.sub('["]','',line)			
+                line = re.sub('["]','',line)            
                 line = line.split(":.asciz ")
                 sym_table[line[0]] = index
                 sym_table[line[0]+"_SIZE_"] = len(line[1])
@@ -247,7 +254,7 @@ of unsupported instructions will throw the same error.
 KeyError exception will be thrown
 '''
 def execute(line:str):
-    global pc,n,z
+    global pc,n_flag,z_flag
     #remove spaces around commas
     line = re.sub('[ ]*,[ ]*',',',line)
     #octothorpe is optional, remove it
@@ -255,12 +262,11 @@ def execute(line:str):
     '''
     regexes
     '''
-
-    rg = '(?:xzr|x[0-9]+)'
+    rg = '(?:sp|xzr|x[0-9]+)'
     #immediates will always be the final operand so the $ is necessary
     num = '(?:0x[0-9a-f]+|[0-9]+)$'
     var = '[a-z]+'
-    lab = '[._]*[a-z]+'
+    lab = '[.]*[a-z_]+'
     '''
     ldr instructions
     '''
@@ -270,7 +276,7 @@ def execute(line:str):
         v = re.findall('='+var,line)[0][1:]
         reg[rd] = sym_table[v]
         return
-    #ldr rd, [rn]>
+    #ldr rd, [rn]
     if(re.match('ldr {},\[{}\]'.format(rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
@@ -303,8 +309,8 @@ def execute(line:str):
         imm = int(re.findall(num,line)[0],0)
         reg[rd] = reg[rn] + imm
         if('adds' in line):
-            n = True if(reg[rd] < 0) else False
-            z = True if(reg[rd] == 0) else False        
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False        
         return
     #add{s} rd, rn, rm
     if(re.match('adds? {},{},{}'.format(rg,rg,rg),line)):
@@ -313,8 +319,8 @@ def execute(line:str):
         rm = re.findall(rg,line)[2]
         reg[rd] = reg[rn] + reg[rm]
         if('adds' in line):
-            n = True if(reg[rd] < 0) else False
-            z = True if(reg[rd] == 0) else False        
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False        
         return
     #sub{s} rd, rn, imm
     if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
@@ -323,8 +329,8 @@ def execute(line:str):
         imm = int(re.findall(num,line)[0],0)
         reg[rd] = reg[rn] - imm
         if('subs' in line):
-            n = True if(reg[rd] < 0) else False
-            z = True if(reg[rd] == 0) else False
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False
         return
     #sub{s} rd, rn, rm
     if(re.match('subs? {},{},{}'.format(rg,rg,rg),line)):
@@ -333,13 +339,28 @@ def execute(line:str):
         rm = re.findall(rg,line)[2]
         reg[rd] = reg[rn] - reg[rm]
         if('subs' in line):
-            n = True if(reg[rd] < 0) else False
-            z = True if(reg[rd] == 0) else False
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False
+        return
+    #mul rd, rn, rm
+    if(re.match('mul {},{},{}'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        reg[rd] = reg[rn] * reg[rm]
         return
     #For now treat un/signed division the same, since everything
-    #is signed in python
-    #(u)div rd, rn, rm
-    if(re.match('u?div {},{},{}'.format(rg,rg,rg),line)):
+    #is signed in python, but separate in case this changes
+    #udiv rd, rn, rm
+    if(re.match('udiv {},{},{}'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        #IMPORTANT: use integer division, not floating point
+        reg[rd] = reg[rn] // reg[rm]
+        return
+    #sdiv rd, rn, rm
+    if(re.match('sdiv {},{},{}'.format(rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -354,6 +375,14 @@ def execute(line:str):
         ra = re.findall(rg,line)[3]
         reg[rd] = reg[ra] - reg[rn] * reg[rm]
         return
+    #madd rd, rn, rm, ra
+    if(re.match('madd {},{},{},{}'.format(rg,rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        ra = re.findall(rg,line)[3]
+        reg[rd] = reg[ra] + reg[rn] * reg[rm]
+        return
     '''
     compare instructions
     '''
@@ -361,18 +390,41 @@ def execute(line:str):
     if(re.match('cmp {},{}'.format(rg,rg),line)):
         rn = re.findall(rg,line)[0]
         rm = re.findall(rg,line)[1]
-        z = True if reg[rn] == reg[rm] else False
-        n = True if reg[rn] < reg[rm] else False
+        z_flag = True if reg[rn] == reg[rm] else False
+        n_flag = True if reg[rn] < reg[rm] else False
         return
     '''
     logical instructions
     '''
-    #and rd, rn, imm
-    if(re.match('and {},{},{}$'.format(rg,rg,num),line)):
+    #and{s} rd, rn, imm
+    if(re.match('ands? {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[0],0)
-        reg[rd] = reg[rn] & imm    
+        reg[rd] = reg[rn] & imm   
+        if('ands' in line):
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False 
+        return 
+    #orr{s} rd, rn, imm
+    if(re.match('orrs? {},{},{}$'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
+        reg[rd] = reg[rn] | imm
+        if('orrs' in line):
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False    
+        return 
+    #eor{s} rd, rn, imm
+    if(re.match('eors? {},{},{}$'.format(rg,rg,num),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[0],0)
+        reg[rd] = reg[rn] ^ imm
+        if('eors' in line):
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False
         return 
     '''
     branch instructions
@@ -401,13 +453,25 @@ def execute(line:str):
     if(re.match('b\.lt {}'.format(lab),line)):
         #the third match is the label
         label = re.findall(lab,line)[2]
-        if(n): pc=asm.index(label+':')
+        if(n_flag): pc=asm.index(label+':')
         return
     #b.gt <label>
     if(re.match('b\.gt {}'.format(lab),line)):
         #the third match is the label
         label = re.findall(lab,line)[2]
-        if(not z and not n): pc=asm.index(label+':')
+        if(not z_flag and not n_flag): pc=asm.index(label+':')
+        return
+    #b.eq <label>
+    if(re.match('b\.eq {}'.format(lab),line)):
+        #the third match is the label
+        label = re.findall(lab,line)[2]
+        if(z_flag): pc=asm.index(label+':')
+        return
+    #b.ne <label>
+    if(re.match('b\.ne {}'.format(lab),line)):
+        #the third match is the label
+        label = re.findall(lab,line)[2]
+        if(not z_flag): pc=asm.index(label+':')
         return
     '''
     system call handler
@@ -470,6 +534,7 @@ only affect registers (no memory access or jumps). Prints the flags
 and affected registers after executing each instruction.
 '''
 def repl():
+    global n_flag,z_flag
     print('armsim repl. operations on memory not supported\ntype q to quit')
     instr = ''
     while(True):
@@ -481,7 +546,7 @@ def repl():
             execute(instr)
             for r in set(re.findall('x[0-9]+',instr)):
                 print("{}: {}".format(r,reg[r]))
-                print("Z: {} N: {}".format(z,n))   
+            print("Z: {} N: {}".format(n_flag,z_flag))   
         except ValueError as e:
             print(e)
     return
@@ -557,6 +622,19 @@ def debug():
             print("command not recognized")
         prevcmd = cmd
     return
+    
+'''
+A procedure to return the simulator to it's initial state
+'''
+def reset():
+    global reg
+    reg = {r:0 for r in reg}
+    reg['sp'] = 1000
+    static_mem.clear()
+    asm.clear()
+    sym_table.clear()
+    n_flag = False;z_flag = False
+    
 def main():
     if(not sys.argv[1:]):
         repl()
