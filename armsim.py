@@ -264,7 +264,8 @@ def execute(line:str):
     '''
     rg = '(?:sp|xzr|x[0-9]+)'
     #immediates will always be the final operand so the $ is necessary
-    num = '(?:0x[0-9a-f]+|[0-9]+)$'
+    #[-] makes sure negatives are detected
+    num = '[-]?(?:0x[0-9a-f]+|[0-9]+)$'
     var = '[a-z]+'
     lab = '[.]*[0-9a-z_]+'
     '''
@@ -404,6 +405,13 @@ def execute(line:str):
         rm = re.findall(rg,line)[1]
         z_flag = True if reg[rn] == reg[rm] else False
         n_flag = True if reg[rn] < reg[rm] else False
+        return
+    #cmp rn, imm
+    if(re.match('cmp {},{}'.format(rg,num),line)):
+        rn = re.findall(rg,line)[0]
+        imm = int(re.findall(num,line)[0],0)
+        z_flag = True if reg[rn] == imm else False
+        n_flag = True if reg[rn] < imm else False
         return
     '''
     logical instructions
@@ -639,7 +647,7 @@ def debug():
 A procedure to return the simulator to it's initial state
 '''
 def reset():
-    global reg
+    global reg,z_flag,n_flag
     reg = {r:0 for r in reg}
     reg['sp'] = 1000
     static_mem.clear()
