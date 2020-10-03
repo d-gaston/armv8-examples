@@ -53,6 +53,8 @@ Currently supported:
     sub{s}  rd, rn, rm
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
+    asr     rd, rn, rm
+    lsr     rd, rn, rm
     udiv    rd, rn, rm
     sdiv    rd, rn, rm
     mul     rd, rn, rm
@@ -304,17 +306,17 @@ def execute(line:str):
     arithmetic instructions
     '''
     #asr rd, rn, imm
-    if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
+    if(re.match('asr {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[0],0)
-        reg[rd] = reg[rn] - imm
+        reg[rd] = reg[rn] >> imm
     #lsl rd, rn, imm
-    if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
+    if(re.match('lsl {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[0],0)
-        reg[rd] = reg[rn] - imm
+        reg[rd] = reg[rn] << imm
     #add{s} rd, rn, imm
     if(re.match('adds? {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
@@ -544,7 +546,7 @@ def run():
     while pc != len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
-        if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
+        if(re.match('[.]*[a-z0-9_]+:$',line)):pc+=1;continue     
         execute(line)
         reg['xzr'] = 0
         pc+=1
@@ -601,7 +603,7 @@ def debug():
                 print("Z: {} N: {}".format(z,n))
         elif(cmd.startswith('n')):
             #if a label in encountered, inc pc and skip
-            if(re.match('[._]*[a-z]+:$',line)):pc+=1;print(line);continue
+            if(re.match('[.]*[0-9a-z_]+:$',line)):pc+=1;print(line);continue
             execute(line)
             print(line)
             pc+=1           
@@ -614,7 +616,7 @@ def debug():
             if(breakpoints):
                 while(pc not in breakpoints):
                     #if a label in encountered, inc pc and skip
-                    if(re.match('[._]*[a-z]+:$',line)):pc+=1;continue
+                    if(re.match('[.]*[0-9a-z_]+:$',line)):pc+=1;continue
                     execute(line)
                     pc+=1
                     line = asm[pc]

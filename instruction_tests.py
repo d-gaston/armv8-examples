@@ -32,7 +32,10 @@ check('adds x0, x1, #-1', result = -2, x1 = -1, negFlag = True)
 
 check('sub x0, x1, x2', result = 1, x1 = 2, x2 = 1)
 check('subs x0, x1, x1', result = 0, x1 = 1, zeroFlag = True)
-check('adds x0, x1, x2', result = -1, x1 = 1, x2 = -2, negFlag = True)
+check('subs x0, x1, x2', result = -1, x1 = 1, x2 = 2, negFlag = True)
+check('sub x0, x1, #1', result = 1, x1 = 2)
+check('subs x0, x1, #1', result = 0, x1 = 1, zeroFlag = True)
+check('subs x0, x1, #2', result = -1, x1 = 1, negFlag = True)
 
 check('mul x0, x1, x1', result = 100, x1 = 10)
 check('udiv x0, x1, x2', result = 10, x1 = 100, x2 = 10)
