@@ -115,7 +115,11 @@ It is accessed with an index and a size using the format [addr:addr+size].
 '''
 static_mem = []
 
-
+'''
+A list that contains the mnemonic of instructions that you don want used 
+for a particular run of the the program
+'''
+forbidden_instructions = []
 
 '''
 This procedure reads the lines of a program (which can be a .s file
@@ -540,11 +544,18 @@ def execute(line:str):
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
     
+   
 '''
 This procedure runs the code normally to the end
 '''
 def run():
     global pc
+    #check for disallowed instructions:
+    #extract mnemonics (string before the first space)
+    mnemonics = [i.split(" ")[0] for i in asm if " " in i]
+    forbid = set(mnemonics).intersection(forbidden_instructions)
+    if(forbid):
+        raise ValueError("Use of {} disallowed".format(forbid))
     while pc != len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
@@ -593,7 +604,7 @@ def debug():
     prevcmd = ''
     breakpoints = set()
     while(True):
-        if(pc == len(asm)): print('reached end of program. exiting...');break		
+        if(pc == len(asm)): print('reached end of program. exiting...');break       
         line = asm[pc]
         cmd = input('> ').lower()
         if(not cmd and prevcmd):
