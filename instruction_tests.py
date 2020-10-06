@@ -37,6 +37,12 @@ check('sub x0, x1, #1', result = 1, x1 = 2)
 check('subs x0, x1, #1', result = 0, x1 = 1, zeroFlag = True)
 check('subs x0, x1, #2', result = -1, x1 = 1, negFlag = True)
 
+check('asr x0, x1, #1', result = 1, x1 = 2)
+check('asr x0, x1, #6', result = 1, x1 = 64)
+
+check('lsl x0, x1, #1', result = 2, x1 = 1)
+check('lsl x0, x1, #3', result = 80, x1 = 10)
+
 check('mul x0, x1, x1', result = 100, x1 = 10)
 check('udiv x0, x1, x2', result = 10, x1 = 100, x2 = 10)
 check('udiv x0, x1, x2', result = 10, x1 = 101, x2 = 10)

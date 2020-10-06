@@ -32,6 +32,8 @@ Directives are information for an assembler. These aren't needed for writing sim
     sub{s}  rd, rn, rm
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
+    asr     rd, rn, imm
+    lsr     rd, rn, imm
     udiv    rd, rn, rm
     sdiv    rd, rn, rm
     mul     rd, rn, rm

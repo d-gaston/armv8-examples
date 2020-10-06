@@ -53,8 +53,8 @@ Currently supported:
     sub{s}  rd, rn, rm
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
-    asr     rd, rn, rm
-    lsr     rd, rn, rm
+    asr     rd, rn, imm
+    lsr     rd, rn, imm
     udiv    rd, rn, rm
     sdiv    rd, rn, rm
     mul     rd, rn, rm
@@ -311,12 +311,14 @@ def execute(line:str):
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[0],0)
         reg[rd] = reg[rn] >> imm
+        return
     #lsl rd, rn, imm
     if(re.match('lsl {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[0],0)
         reg[rd] = reg[rn] << imm
+        return
     #add{s} rd, rn, imm
     if(re.match('adds? {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
@@ -472,25 +474,25 @@ def execute(line:str):
         pc = asm.index(label+':')
         return
     #b.lt <label>
-    if(re.match('b\.lt {}'.format(lab),line)):
+    if(re.match('b\.?lt {}'.format(lab),line)):
         #the third match is the label
         label = re.findall(lab,line)[2]
         if(n_flag): pc=asm.index(label+':')
         return
     #b.gt <label>
-    if(re.match('b\.gt {}'.format(lab),line)):
+    if(re.match('b\.?gt {}'.format(lab),line)):
         #the third match is the label
         label = re.findall(lab,line)[2]
         if(not z_flag and not n_flag): pc=asm.index(label+':')
         return
     #b.eq <label>
-    if(re.match('b\.eq {}'.format(lab),line)):
+    if(re.match('b\.?eq {}'.format(lab),line)):
         #the third match is the label
         label = re.findall(lab,line)[2]
         if(z_flag): pc=asm.index(label+':')
         return
     #b.ne <label>
-    if(re.match('b\.ne {}'.format(lab),line)):
+    if(re.match('b\.?ne {}'.format(lab),line)):
         #the third match is the label
         label = re.findall(lab,line)[2]
         if(not z_flag): pc=asm.index(label+':')
@@ -591,6 +593,7 @@ def debug():
     prevcmd = ''
     breakpoints = set()
     while(True):
+        if(pc == len(asm)): print('reached end of program. exiting...');break		
         line = asm[pc]
         cmd = input('> ').lower()
         if(not cmd and prevcmd):
@@ -668,6 +671,6 @@ def main():
             debug()
         else:
             run()
-            print(reg['x0'])
+            print(reg['x2'])
 if __name__ == "__main__":
     main()
