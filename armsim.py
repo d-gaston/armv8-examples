@@ -671,6 +671,5 @@ def main():
             debug()
         else:
             run()
-            print(reg['x2'])
 if __name__ == "__main__":
     main()
