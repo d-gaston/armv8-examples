@@ -9,7 +9,6 @@ Up to 3 values can be passed in to put into operand registers. These will
 go in x1, x2, and x3. Additionally arguments for flags can be passed in.
 Note that more complex instructions (i.e. ones that hit memory or ones
 with dependencies on prior sequences will be tested with integration tests
-TODO: make identifying failing test in output easier 
 '''
 def check(line:str, result:int, x1=0,x2=0,x3=0, zeroFlag = False, negFlag = False):
 	armsim.reg['x1'] = x1; armsim.reg['x2'] = x2; armsim.reg['x3'] = x3;

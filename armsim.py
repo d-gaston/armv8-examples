@@ -157,7 +157,7 @@ def parse(lines)->None:
         if("*/" in line):comment = False;continue
         if(".data" in line):data = True;code = False;bss = False;continue
         if(".bss" in line):data = False;code = False;bss = True;continue
-        if("main:" in line):code = True;data = False;bss = False;continue
+        if("main:" in line or "_start:" in line):code = True;data = False;bss = False;continue
         if(code and not comment and len(line)>0):line = line.lower();asm.append(line)
         if((data or bss) and not comment):
             #remove quotes and whitespace surrouding punctuation 
@@ -508,7 +508,8 @@ def execute(line:str):
     #svc 0
     if(re.match('svc 0',line)):
         syscall = int(reg['x8'])
-        if(syscall==93):sys.exit()
+        #simulate exit by causing main loop to exit
+        if(syscall==93):pc = len(asm)
         #write
         if(syscall==64):
             length = reg['x2']
@@ -556,7 +557,7 @@ def run():
     forbid = set(mnemonics).intersection(forbidden_instructions)
     if(forbid):
         raise ValueError("Use of {} disallowed".format(forbid))
-    while pc != len(asm):
+    while pc < len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
         if(re.match('[.]*[a-z0-9_]+:$',line)):pc+=1;continue     
