@@ -24,12 +24,6 @@ main:
      * since they require using the W registers 
      *******************************/
 
-   /***********************
-    * Make room for some temp variables
-    * to be saved on the stack betweeen
-    * subroutine calls (must be multiple of 16)
-    ***********************/
-    sub sp, sp, 16
     
    /***********************
     * Print out prompt
@@ -50,8 +44,7 @@ main:
     mov x8, 0x3f
     svc 0
     
-    //save the string length
-    str x0, [sp, 8]
+
     mov x1, x0
     ldr x0, =entry
    /***********************
@@ -93,8 +86,7 @@ main:
     mov x8, 0x40
     svc 0
   exit:    
-    //restore sp
-    add sp, sp, 16
+
    /********************
     * Exit syscall 
     *********************/
