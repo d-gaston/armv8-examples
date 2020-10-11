@@ -45,8 +45,13 @@ Currently supported:
     rn = first register operand
     rm = second register operand
     imm = immediate value (aka a number)
+    ldp     rt, rt2, [rn], imm //post index
+    stp     rt, rt2, [rn, imm]! //pre index
     ldr     rd,=<var>
     ldr     rd,[rn]
+    ldr     rt, [rn, imm]
+    str     rt, [rn]
+    str     rt, [rn, imm]
     mov     rd,imm
     mov     rd,rn
     sub{s}  rd, rn, imm
@@ -61,7 +66,9 @@ Currently supported:
     msub    rd, rn, rm, ra
     madd    rd, rn, rm, ra
     and{s}  rd, rn, imm
+    and{s}  rd, rn, rm
     orr{s}  rd, rn, imm
+    orr{s}  rd, rn, rm
     eor{s}  rd, rn, imm
     cmp     rn, rm
     cbnz    rn, <label>
@@ -71,6 +78,8 @@ Currently supported:
     b.lt    <label>
     b.eq    <label>
     b.ne    <label>
+    bl      <label>
+    ret
     svc 0   
 
     
@@ -87,12 +96,11 @@ Global state variables
 '''
 #list to hold the instructions
 asm = []
-#list to represent the stack
-s=[0]*1001 
+STACK_SIZE = 4096
 #dict of register names to values. Will always be numeric values       
-reg = {'sp':1000,'lr':0,'x0':0,'x1':0,'x2':0,'x3':0,'x4':0,'x5':0,'x6':0,'x7':0,'x8':0,'x9':0,'x10':0,
+reg = {'x0':0,'x1':0,'x2':0,'x3':0,'x4':0,'x5':0,'x6':0,'x7':0,'x8':0,'x9':0,'x10':0,
 'x11':0,'x12':0,'x13':0,'x14':0,'x15':0,'x16':0,'x17':0,'x18':0,'x19':0,'x20':0,
-'x21':0,'x22':0,'x23':0,'x24':0,'x25':0,'x26':0,'x27':0,'x28':0,'x29':0,'x30':0,'xzr':0}
+'x21':0,'x22':0,'x23':0,'x24':0,'x25':0,'x26':0,'x27':0,'x28':0,'fp':0,'lr':0,'sp':0,'xzr':0}
 #program counter
 pc = 0
 #negative flag
@@ -102,18 +110,20 @@ z_flag = False
 
 '''
 A map of string to int, where int will either be
-an index into the static_mem array or a size in bytes.
+an index into the mem array or a size in bytes.
 Basically, vars declared with a : will be addresses and
 vars declared with = will be literals
 '''
 sym_table = {}
 '''
-Static data is stored as a list. Each element is an int that represents a byte. 
+Data is stored as a list. Each element is an int that represents a byte. 
 String data gets "converted" by doing list(bytes(str,'ascii')) and numbers 
 get converted into a list from their byte representation using list(int.tobytes()).
 It is accessed with an index and a size using the format [addr:addr+size].
+The stack pointer also points to the end of this list and grows down.
+It's first filled with static data, then extended to fit the stack
 '''
-static_mem = []
+mem = []
 
 '''
 A list that contains the mnemonic of instructions that you don want used 
@@ -124,7 +134,7 @@ forbidden_instructions = []
 '''
 This procedure reads the lines of a program (which can be a .s file
 or just a list of assembly instructions) and populates the
-sym_table, static_mem, and asm data structures. It uses
+sym_table, mem, and asm data structures. It uses
 boolean flags to determine which datastructure is currently
 being populated. These flags change upon encountering specific
 keywords. Those keywords are .data or .bss for declaring constants
@@ -134,16 +144,17 @@ is needed for using gdb
 '''
 
 def parse(lines)->None:
+    global STACK_SIZE
     #booleans for parsing .s file
     comment = False
     code = False
     data = False
     bss = False 
     '''
-    This is a counter that is used to assign an "address" in static_mem
+    This is a counter that is used to assign an "address" in mem
     to a symbol. Basically the value in sym_table when a key is one of 
     the user defined variables. It's incremented for every variable encountered
-    by the size of the data stored in static_mem
+    by the size of the data stored in mem
     '''
     index = 0
     
@@ -175,7 +186,7 @@ def parse(lines)->None:
             we save the length of the string in a "shadow entry"
             in sym_table in case someone wants to find the length
             using the -. idiom. The string gets converted to bytes
-            before it is written to static_mem
+            before it is written to mem
             '''
             if(re.match('.*:\.asciz.*',line)):
                 #Don't convert string literals to lower case, so split on quote
@@ -186,7 +197,7 @@ def parse(lines)->None:
                 line = line.split(":.asciz ")
                 sym_table[line[0]] = index
                 sym_table[line[0]+"_SIZE_"] = len(line[1])
-                static_mem.extend(list(bytes(line[1],'ascii')))
+                mem.extend(list(bytes(line[1],'ascii')))
                 index+=len(list(line[1]))
                 continue
             '''
@@ -194,7 +205,7 @@ def parse(lines)->None:
             We first check if a previously declared variable is being
             used to determine the size. If so we fetch it and use that,
             otherwise we just use the number provided. We append a list
-            with n zero values to static_mem where n is the size we found
+            with n zero values to mem where n is the size we found
             Additionally, the size is stored in a shadow entry
             '''
             if(re.match('.*:\.space.*',line)):
@@ -203,12 +214,12 @@ def parse(lines)->None:
                 sym_table[line[0]] = index
                 if(line[1] in sym_table):
                     size = sym_table[line[1]]
-                    static_mem.extend(list([0]*size))
+                    mem.extend(list([0]*size))
                     index+=size
                     sym_table[line[0]+"_SIZE_"] = size
                 else:
                     size = int(line[1])
-                    static_mem.extend(list([0]*size))
+                    mem.extend(list([0]*size))
                     index+=size
                     sym_table[line[0]+"_SIZE_"] = size
                 continue    
@@ -240,6 +251,9 @@ def parse(lines)->None:
     #verify that labels have not be redeclared
     labels = [l for l in asm if(re.match('[._]*[a-z]+:',l))]
     if(len(labels)>len(set(labels))):raise ValueError("You can't declare the same label more than once")
+    #extend mem to make room for the stack, then set the stack pointer
+    mem.extend(list([0]*STACK_SIZE))
+    reg['sp'] = len(mem) - 1
 '''
 This procedure dispatches and executes the provided line
 of assembly code. In order to deal with the myriad
@@ -268,36 +282,101 @@ def execute(line:str):
     '''
     regexes
     '''
-    rg = '(?:sp|xzr|x[0-9]+)'
-    #immediates will always be the final operand so the $ is necessary
+    rg = '(?:lr|fp|sp|xzr|x[0-9]+)'
+    #immediates (hex or dec) will be last in the operand list, even though
+    #this matches registers like x12 we will only worry about
+    #the match list starting from the end.
     #[-] makes sure negatives are detected
-    num = '[-]?(?:0x[0-9a-f]+|[0-9]+)$'
+    num = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
     var = '[a-z]+'
     lab = '[.]*[0-9a-z_]+'
+    
+    
+    
+    
+    
+    
+    '''
+    ldp instructions
+    ''' 
+    #ldp rt, rt2, [rn], imm //post index
+    if(re.match('ldp {},{},\[{}\],{}'.format(rg,rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn]
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        addr += 8
+        reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        reg[rn] += imm
+        return
+    '''
+    stp instructions
+    '''
+    #stp rt, rt2, [rn, imm]! //pre index
+    if(re.match('stp {},{},\[{},{}\]!'.format(rg,rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]        
+        imm = int(re.findall(num,line)[-1],0)
+        reg[rn] += imm
+        addr = reg[rn]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        addr += 8
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
+        return       
     '''
     ldr instructions
     '''
-    #ldr rd, =<var>
+    #ldr rt, =<var>
     if(re.match('ldr {},={}'.format(rg,var),line)):
-        rd = re.findall(rg,line)[0]
+        rt = re.findall(rg,line)[0]
         v = re.findall('='+var,line)[0][1:]
-        reg[rd] = sym_table[v]
+        reg[rt] = sym_table[v]
         return
-    #ldr rd, [rn]
+    #ldr rt, [rn]
     if(re.match('ldr {},\[{}\]'.format(rg,rg),line)):
-        rd = re.findall(rg,line)[0]
+        rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         addr = reg[rn]
         #load 8 bytes starting at addr and convert to int
-        reg[rd] = int.from_bytes(bytes(static_mem[addr:addr+8]),'little')
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         return
+    #ldr rt, [rn, imm]
+    if(re.match('ldr {},\[{},{}\]'.format(rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn] + imm
+        #load 8 bytes starting at addr and convert to int
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        return
+    '''
+    str instructions
+    '''
+    #str rt, [rn]
+    if(re.match('str {},\[{}\]'.format(rg,rg),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        addr = reg[rn]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        return    
+    #str rt, [rn, imm]
+    if(re.match('str {},\[{},{}\]'.format(rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn] + imm
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        return    
     '''
     mov instructions
     '''
     #mov rd, imm
     if(re.match('mov {},{}'.format(rg,num),line)):
         rd = re.findall(rg,line)[0]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = imm
         return
     #mov rd, rn
@@ -313,21 +392,21 @@ def execute(line:str):
     if(re.match('asr {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] >> imm
         return
     #lsl rd, rn, imm
     if(re.match('lsl {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] << imm
         return
     #add{s} rd, rn, imm
     if(re.match('adds? {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] + imm
         if('adds' in line):
             n_flag = True if(reg[rd] < 0) else False
@@ -347,7 +426,7 @@ def execute(line:str):
     if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] - imm
         if('subs' in line):
             n_flag = True if(reg[rd] < 0) else False
@@ -417,7 +496,7 @@ def execute(line:str):
     #cmp rn, imm
     if(re.match('cmp {},{}'.format(rg,num),line)):
         rn = re.findall(rg,line)[0]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         z_flag = True if reg[rn] == imm else False
         n_flag = True if reg[rn] < imm else False
         return
@@ -428,8 +507,18 @@ def execute(line:str):
     if(re.match('ands? {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] & imm   
+        if('ands' in line):
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False 
+        return 
+    #and{s} rd, rn, rm
+    if(re.match('ands? {},{},{}$'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        reg[rd] = reg[rn] & reg[rm]   
         if('ands' in line):
             n_flag = True if(reg[rd] < 0) else False
             z_flag = True if(reg[rd] == 0) else False 
@@ -438,8 +527,18 @@ def execute(line:str):
     if(re.match('orrs? {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] | imm
+        if('orrs' in line):
+            n_flag = True if(reg[rd] < 0) else False
+            z_flag = True if(reg[rd] == 0) else False    
+        return 
+    #orr{s} rd, rn, rm
+    if(re.match('orrs? {},{},{}$'.format(rg,rg,rg),line)):
+        rd = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        reg[rd] = reg[rn] | reg[rm]
         if('orrs' in line):
             n_flag = True if(reg[rd] < 0) else False
             z_flag = True if(reg[rd] == 0) else False    
@@ -448,7 +547,7 @@ def execute(line:str):
     if(re.match('eors? {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
-        imm = int(re.findall(num,line)[0],0)
+        imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] ^ imm
         if('eors' in line):
             n_flag = True if(reg[rd] < 0) else False
@@ -460,46 +559,57 @@ def execute(line:str):
     #cbnz rn,<label>
     if(re.match('cbnz {},{}'.format(rg,lab),line)):
         rn = re.findall(rg,line)[0]
-        #the third match is the label
-        label = re.findall(lab,line)[2]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         if(reg[rn] != 0):pc = asm.index(label+':') 
         return
     #cbz rn, <label>
     if(re.match('cbz {},{}'.format(rg,lab),line)):
         rn = re.findall(rg,line)[0]
-        #the third match is the label
-        label = re.findall(lab,line)[2]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         if(reg[rn] == 0):pc = asm.index(label+':') 
         return
     #b <label>
     if(re.match('b {}'.format(lab),line)):
-        #the second match is the label
-        label = re.findall(lab,line)[1]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         pc = asm.index(label+':')
         return
     #b.lt <label>
     if(re.match('b\.?lt {}'.format(lab),line)):
-        #the third match is the label
-        label = re.findall(lab,line)[2]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         if(n_flag): pc=asm.index(label+':')
         return
     #b.gt <label>
     if(re.match('b\.?gt {}'.format(lab),line)):
-        #the third match is the label
-        label = re.findall(lab,line)[2]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         if(not z_flag and not n_flag): pc=asm.index(label+':')
         return
     #b.eq <label>
     if(re.match('b\.?eq {}'.format(lab),line)):
-        #the third match is the label
-        label = re.findall(lab,line)[2]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         if(z_flag): pc=asm.index(label+':')
         return
     #b.ne <label>
     if(re.match('b\.?ne {}'.format(lab),line)):
-        #the third match is the label
-        label = re.findall(lab,line)[2]
+        #last match is the label
+        label = re.findall(lab,line)[-1]
         if(not z_flag): pc=asm.index(label+':')
+        return
+    #bl <label>
+    if(re.match('bl {}'.format(lab),line)):
+        #last match is the label
+        label = re.findall(lab,line)[-1]
+        reg['lr'] = pc
+        pc=asm.index(label+':')
+        return
+    #ret 
+    if(re.match('ret',line)):
+        pc = reg['lr']
         return
     '''
     system call handler
@@ -509,12 +619,13 @@ def execute(line:str):
     if(re.match('svc 0',line)):
         syscall = int(reg['x8'])
         #simulate exit by causing main loop to exit
-        if(syscall==93):pc = len(asm)
+        if(syscall==93):
+            pc = len(asm)
         #write
         if(syscall==64):
             length = reg['x2']
             addr = reg['x1']
-            output = bytes(static_mem[addr:addr+length]).decode('ascii')
+            output = bytes(mem[addr:addr+length]).decode('ascii')
             #if there is a newline char in the output,
             #remove it and print normally, else print
             #with no newline
@@ -532,15 +643,15 @@ def execute(line:str):
             #truncate input based on # of chars read
             enter = enter[:length]
             #store as bytes, not string
-            static_mem[addr:addr+len(enter)] = list(bytes(enter,'ascii'))
+            mem[addr:addr+len(enter)] = list(bytes(enter,'ascii'))
             #return value is # of bytes read
             reg['x0'] = len(enter)
         #getrandom
         if(syscall==278):
             addr = reg['x0']
             quantity = reg['x1']
-            #the number of random bytes requested is written to static_mem
-            static_mem[addr:addr+quantity] = list(os.urandom(quantity))
+            #the number of random bytes requested is written to mem
+            mem[addr:addr+quantity] = list(os.urandom(quantity))
             reg['x0'] = quantity  
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
@@ -550,13 +661,16 @@ def execute(line:str):
 This procedure runs the code normally to the end
 '''
 def run():
-    global pc
+    global pc, STACK_SIZE
     #check for disallowed instructions:
     #extract mnemonics (string before the first space)
     mnemonics = [i.split(" ")[0] for i in asm if " " in i]
     forbid = set(mnemonics).intersection(forbidden_instructions)
     if(forbid):
         raise ValueError("Use of {} disallowed".format(forbid))
+    #check for stack overflow
+    if(reg['sp'] < len(mem) - STACK_SIZE):
+        raise ValueError("stack overflow")
     while pc < len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
@@ -612,7 +726,7 @@ def debug():
             cmd = prevcmd
         if(cmd.startswith('q')):break
         elif(cmd.startswith('p ')):
-            for r in set(re.findall('x[0-9]+',cmd)):
+            for r in set(re.findall('(?:lr|fp|sp|xzr|x[0-9]+)',cmd)):
                 print("{}: {}".format(r,reg[r]))
             if('flags' in cmd):
                 print("Z: {} N: {}".format(z,n))
@@ -664,13 +778,13 @@ def debug():
 A procedure to return the simulator to it's initial state
 '''
 def reset():
-    global reg,z_flag,n_flag
+    global reg,z_flag,n_flag,pc
     reg = {r:0 for r in reg}
-    reg['sp'] = 1000
-    static_mem.clear()
+    mem.clear()
     asm.clear()
     sym_table.clear()
     n_flag = False;z_flag = False
+    pc = 0
     
 def main():
     if(not sys.argv[1:]):

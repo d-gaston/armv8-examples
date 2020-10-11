@@ -24,8 +24,13 @@ Directives are information for an assembler. These aren't needed for writing sim
 *rm = second register operand*
 *imm = immediate value (aka a number)*
    
+    ldp     rt, rt2, [rn], imm //post index
+    stp     rt, rt2, [rn, imm]! //pre index
     ldr     rd,=<var>
     ldr     rd,[rn]
+    ldr     rt, [rn, imm]
+    str     rt, [rn]
+    str     rt, [rn, imm]
     mov     rd,imm
     mov     rd,rn
     sub{s}  rd, rn, imm
@@ -40,7 +45,9 @@ Directives are information for an assembler. These aren't needed for writing sim
     msub    rd, rn, rm, ra
     madd    rd, rn, rm, ra
     and{s}  rd, rn, imm
+    and{s}  rd, rn, rm
     orr{s}  rd, rn, imm
+    orr{s}  rd, rn, rm
     eor{s}  rd, rn, imm
     cmp     rn, rm
     cbnz    rn, <label>
@@ -50,7 +57,9 @@ Directives are information for an assembler. These aren't needed for writing sim
     b.lt    <label>
     b.eq    <label>
     b.ne    <label>
-    svc 0     
+    bl      <label>
+    ret
+    svc 0       
 
     
 ### Comments 

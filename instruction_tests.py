@@ -36,6 +36,16 @@ check('sub x0, x1, #1', result = 1, x1 = 2)
 check('subs x0, x1, #1', result = 0, x1 = 1, zeroFlag = True)
 check('subs x0, x1, #2', result = -1, x1 = 1, negFlag = True)
 
+check('and x0, x1, #1', result = 1, x1 = 1)
+check('ands x0, x1, 0', result = 0, x1 = 99, zeroFlag = True)
+check('and x0, x1, x2', result = 1, x1 = 1, x2 = 1)
+check('ands x0, x1, x2', result = 0, x1 = 99, x2 = 0, zeroFlag = True)
+
+check('orr x0, x1, #1', result = 3, x1 = 2)
+check('orrs x0, x1, 0', result = 0, x1 = 0, zeroFlag = True)
+check('orr x0, x1, x2', result = 3, x1 = 2, x2 = 1)
+check('orrs x0, x1, x2', result = 0, x1 = 0, x2 = 0, zeroFlag = True)
+
 check('asr x0, x1, #1', result = 1, x1 = 2)
 check('asr x0, x1, #6', result = 1, x1 = 64)
 

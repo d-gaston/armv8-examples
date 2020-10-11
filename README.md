@@ -6,7 +6,7 @@
 	+ **loop.s** same as hello.s, but prints a message mutliple times in order to demonstrate a basic looping construct
 	+ **prompt.s** Asks the user for a name then prints out the name with a greeting. Introduces reading input from the command line
 	+ **guess.s** Generates a random number from 0 - 9 and asks the user to guess until the right answer is inputted
-	+ **collatz.s** Asks the user to input a positive number and returns the number of steps for the number to converge on 1 using the Collatz Conjecture (This example runs on hardware, but armsim currently does not run it)
+	+ **collatz.s** Asks the user to input a positive number and returns the number of steps for the number to converge on 1 using the Collatz Conjecture
 
 # To Compile
 `$ as name.s -o name.o && ld name.o -o name`
@@ -29,4 +29,4 @@ Here are some commands you'll want to know:
 Pressing enter at a blank prompt causes the previously executed command to run again. This can save a lot of typing.
 
 # armsim.py
-This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, prompt.s, and guess.s. See [the guide](armsim_guide.md) for information on its features and what instructions are currently supported. It's advisable to use the sample programs as a starting point for understanding the supported instructions and for writing your own programs
+This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, prompt.s, guess.s, and collatz.s. See [the guide](armsim_guide.md) for information on its features and what instructions are currently supported. It's advisable to use the sample programs as a starting point for understanding the supported instructions and for writing your own programs

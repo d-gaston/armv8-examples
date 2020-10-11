@@ -23,7 +23,8 @@ main:
      * This is because I won't be using load/store byte instructions
      * since they require using the W registers 
      *******************************/
-
+    //allocate stack space for local variable
+    sub sp, sp, 16
     
    /***********************
     * Print out prompt
@@ -60,7 +61,12 @@ main:
     
     bl collatz
     
+    //save collatz steps value on stack
+    str x0, [sp, 8]
+    
     bl int2str
+    
+    
     
    /***********************
     * Load pointer to "steps" variable
@@ -85,8 +91,12 @@ main:
     mov x2, 8
     mov x8, 0x40
     svc 0
-  exit:    
-
+    
+    //retrieve collatz steps to use as exit value
+    ldr x0, [sp, 8]
+  exit:
+    //restore stack
+    sub sp, sp, 16
    /********************
     * Exit syscall 
     *********************/
@@ -260,7 +270,7 @@ collatz:
     bl collatz
     add x0, x0, 1
   terminate:
-    ldp x29, x30, [sp], #16
+    ldp fp, lr, [sp], #16
     ret
         
        
