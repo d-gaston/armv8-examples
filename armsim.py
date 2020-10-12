@@ -671,6 +671,8 @@ def run():
     #check for stack overflow
     if(reg['sp'] < len(mem) - STACK_SIZE):
         raise ValueError("stack overflow")
+    if(not asm):
+        raise ValueError("no code detected (remember to include a _start: or main: label)")
     while pc < len(asm):
         line=asm[pc]
         #if a label in encountered, inc pc and skip
