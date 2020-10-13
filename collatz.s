@@ -96,7 +96,7 @@ main:
     ldr x0, [sp, 8]
   exit:
     //restore stack
-    sub sp, sp, 16
+    add sp, sp, 16
    /********************
     * Exit syscall 
     *********************/
