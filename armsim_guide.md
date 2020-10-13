@@ -8,7 +8,7 @@ Run a program with `python armsim.py <program>.s`
     write      0x40  (64) --stdout only
     getrandom  0x116 (278)
 ### Labels:
-Can start with zero or more periods followed by any number of numbers, letters, or underscores (regex: [.]*[a-z_]+). The same label cannot be declared twice. Since text is converted to lowercase, LABEL: and label: would count as the same. Labels must be declared on their ***OWN*** line.
+Can start with zero or more periods followed by any number of numbers, letters, or underscores (regex: [.]*[a-z0-9_]+). The same label cannot be declared twice. Since text is converted to lowercase, LABEL: and label: would count as the same. Labels must be declared on their ***OWN*** line.
 ### Directives:
 Directives are information for an assembler. These aren't needed for writing simple programs to test out instructions
 * .data    (declare a region of initialized data)
@@ -17,6 +17,8 @@ Directives are information for an assembler. These aren't needed for writing sim
     * =        (assignment of a variable to a constant value within the .data section)
 * .bss     (declare a region of unitialized data)
     * .space   (declare an empty buffer in the .bss section)
+### Registers
+Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be explicitly named (i.e. you can't use x30 as an alias for lr, you must use lr)
 ### Instructions:
 **{s} means that 's' can be optionally added to the end of an instruction to make the result affect the flags**
 *rd = destination register*
@@ -67,7 +69,7 @@ Directives are information for an assembler. These aren't needed for writing sim
 
     
 ### Comments 
-(Must NOT be on same line as stuff you want read into the program, since the parser throws away lines with comments):
+(Must ***NOT*** be on same line as stuff you want read into the program, since the parser throws away lines with comments):
 
     //text
     /*text*/
