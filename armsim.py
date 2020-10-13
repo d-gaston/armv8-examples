@@ -75,9 +75,13 @@ Currently supported:
     cbz     rn, <label>
     b       <label>
     b.gt    <label>
+    b.ge    <label>
     b.lt    <label>
+    b.le    <label>
     b.eq    <label>
     b.ne    <label>
+    b.mi    <label>
+    b.pl    <label>
     bl      <label>
     ret
     svc 0   
@@ -103,6 +107,9 @@ reg = {'x0':0,'x1':0,'x2':0,'x3':0,'x4':0,'x5':0,'x6':0,'x7':0,'x8':0,'x9':0,'x1
 'x21':0,'x22':0,'x23':0,'x24':0,'x25':0,'x26':0,'x27':0,'x28':0,'fp':0,'lr':0,'sp':0,'xzr':0}
 #program counter
 pc = 0
+#Note: Python doesn't really have overflow and it would
+#be a pain to simulate, so the v (signed overflow) flag
+#is implicitly zero
 #negative flag
 n_flag = False 
 #zero flag
@@ -121,7 +128,8 @@ String data gets "converted" by doing list(bytes(str,'ascii')) and numbers
 get converted into a list from their byte representation using list(int.tobytes()).
 It is accessed with an index and a size using the format [addr:addr+size].
 The stack pointer also points to the end of this list and grows down.
-It's first filled with static data, then extended to fit the stack
+It's first filled with static data, then extended to fit the stack.
+The sp (stack pointer) register will point to the end of this list
 '''
 mem = []
 
@@ -582,11 +590,23 @@ def execute(line:str):
         label = re.findall(lab,line)[-1]
         if(n_flag): pc=asm.index(label+':')
         return
+    #b.le <label>
+    if(re.match('b\.?le {}'.format(lab),line)):
+        #last match is the label
+        label = re.findall(lab,line)[-1]
+        if(n_flag or z_flag): pc=asm.index(label+':')
+        return
     #b.gt <label>
     if(re.match('b\.?gt {}'.format(lab),line)):
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not z_flag and not n_flag): pc=asm.index(label+':')
+        return
+    #b.ge <label>
+    if(re.match('b\.?ge {}'.format(lab),line)):
+        #last match is the label
+        label = re.findall(lab,line)[-1]
+        if(not n_flag): pc=asm.index(label+':')
         return
     #b.eq <label>
     if(re.match('b\.?eq {}'.format(lab),line)):
@@ -599,6 +619,18 @@ def execute(line:str):
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not z_flag): pc=asm.index(label+':')
+        return
+    #b.mi <label>
+    if(re.match('b\.?mi {}'.format(lab),line)):
+        #last match is the label
+        label = re.findall(lab,line)[-1]
+        if(n_flag): pc=asm.index(label+':')
+        return
+    #b.pl <label>
+    if(re.match('b\.?pl {}'.format(lab),line)):
+        #last match is the label
+        label = re.findall(lab,line)[-1]
+        if(not n_flag or z_flag): pc=asm.index(label+':')
         return
     #bl <label>
     if(re.match('bl {}'.format(lab),line)):

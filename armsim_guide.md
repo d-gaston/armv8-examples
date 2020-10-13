@@ -54,16 +54,20 @@ Directives are information for an assembler. These aren't needed for writing sim
     cbz     rn, <label>
     b       <label>
     b.gt    <label>
+    b.ge    <label>
     b.lt    <label>
+    b.le    <label>
     b.eq    <label>
     b.ne    <label>
+    b.mi    <label>
+    b.pl    <label>
     bl      <label>
     ret
-    svc 0       
+    svc 0        
 
     
 ### Comments 
-(Must NOT be on same line as stuff you want read into the program):
+(Must NOT be on same line as stuff you want read into the program, since the parser throws away lines with comments):
 
     //text
     /*text*/
