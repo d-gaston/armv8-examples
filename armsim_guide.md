@@ -7,6 +7,7 @@ Run a program with `python armsim.py <program>.s`
     read       0x3f  (63) --stdin only
     write      0x40  (64) --stdout only
     getrandom  0x116 (278)
+    exit       0x5d  (93)
 ### Labels:
 Can start with zero or more periods followed by any number of numbers, letters, or underscores (regex: [.]*[a-z0-9_]+). The same label cannot be declared twice. Since text is converted to lowercase, LABEL: and label: would count as the same. Labels must be declared on their ***OWN*** line.
 ### Directives:
