@@ -1,6 +1,7 @@
 import re
 import sys
 import os
+
 '''
 *******************
 * ArmSim Overview *
@@ -146,9 +147,7 @@ sym_table, mem, and asm data structures. It uses
 boolean flags to determine which datastructure is currently
 being populated. These flags change upon encountering specific
 keywords. Those keywords are .data or .bss for declaring constants
-and buffers and main: for code. Although this diverges from the 
-standard it forces people to put a main label in their code, which
-is needed for using gdb
+and buffers and main: or _start: for code. 
 '''
 
 def parse(lines)->None:
@@ -199,9 +198,14 @@ def parse(lines)->None:
             if(re.match('.*:\.asciz.*',line)):
                 #Don't convert string literals to lower case, so split on quote
                 #and everything to the left becomes lower
-                line = line[0:line.find('\"')].lower() + line[line.find('\"'):]
+                line = line[0:line.find('\"')].lower() + line[line.find('\"'):]             
                 #remove quote characters
-                line = re.sub('["]','',line)            
+                line = re.sub('["]','',line)
+                #escape characters get mangled to \\<char>, convert to \<char>
+                #for now just tab, carriage return, and newline 
+                line = line.replace('\\n','\n')
+                line = line.replace('\\t','\t')
+                line = line.replace('\\r','\r')
                 line = line.split(":.asciz ")
                 sym_table[line[0]] = index
                 sym_table[line[0]+"_SIZE_"] = len(line[1])
@@ -262,6 +266,7 @@ def parse(lines)->None:
     #extend mem to make room for the stack, then set the stack pointer
     mem.extend(list([0]*STACK_SIZE))
     reg['sp'] = len(mem) - 1
+    
 '''
 This procedure dispatches and executes the provided line
 of assembly code. In order to deal with the myriad
@@ -298,10 +303,6 @@ def execute(line:str):
     num = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
     var = '[a-z]+'
     lab = '[.]*[0-9a-z_]+'
-    
-    
-    
-    
     
     
     '''
@@ -658,14 +659,9 @@ def execute(line:str):
             length = reg['x2']
             addr = reg['x1']
             output = bytes(mem[addr:addr+length]).decode('ascii')
-            #if there is a newline char in the output,
-            #remove it and print normally, else print
-            #with no newline
-            if('\\n' in output):
-                output = output.replace('\\n','')
-                print(output)
-            else:
-                print(output, end='') 
+            #if the user wants to print a newline they have to include
+            #it in their string
+            print(output, end='') 
         #read
         if(syscall==63):
             length = reg['x2']
@@ -690,7 +686,10 @@ def execute(line:str):
     
    
 '''
-This procedure runs the code normally to the end
+This procedure runs the code normally to the end. Exceptions are raised
+for stack overflow, if no code is detected, and if any forbidden 
+instructions are found. The program is considered to have ended when
+pc equals the length of the asm list
 '''
 def run():
     global pc, STACK_SIZE
@@ -712,6 +711,7 @@ def run():
         execute(line)
         reg['xzr'] = 0
         pc+=1
+        
 '''
 Simple REPL for testing instructions. Limited to instructions that
 only affect registers (no memory access or jumps). Prints the flags
@@ -734,6 +734,7 @@ def repl():
         except ValueError as e:
             print(e)
     return
+
 '''
 Simple debugger interface for running a .s file. Commands are
 p flags      print flags
