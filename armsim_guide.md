@@ -1,6 +1,6 @@
 # armsim Guide
 --------------------
-The goal of this program is to simulate an arm64 processor executing a compiled .s file. It attempts to be compatible with the format of gnu assembler files and supports a subset of the instructions and directives. The basic operation of the simulator is that it first reads in a .s file line by line and separates the input into code and symbol declarations.The data in static memory is simulated with a python list, where each element represents one byte as an int. It attempts to execute each line of code by matching against regular expressions that encode the instruction format, and updating global variables appropriately based on that execution. All text is converted to lower case, meaning that indentifiers are not case sensitive (so variable = VARIABLE).
+The goal of this program is to simulate an arm64 processor executing a compiled .s file. It attempts to be compatible with the format of gnu assembler files and supports a subset of the instructions and directives. The basic operation of the simulator is that it first reads in a .s file line by line and separates the input into code and symbol declarations.The data in static memory is simulated with a python list, where each element represents one byte as an int. It attempts to execute each line of code by matching against regular expressions that encode the instruction format, and updating global variables appropriately based on that execution. All text is converted to lower case, meaning that identifiers are not case sensitive (so variable = VARIABLE).
 Run a program with `python armsim.py <program>.s`
 ## Currently supported:
 ### System Calls:
@@ -27,15 +27,15 @@ Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be e
 *rm = second register operand*
 *imm = immediate value (aka a number)*
    
-    ldp     rt, rt2, [rn], imm //post index
+    ldp     rt, rt2, [rn], imm  //post index
     stp     rt, rt2, [rn, imm]! //pre index
-    ldr     rd,=<var>
-    ldr     rd,[rn]
+    ldr     rd, =<var>
+    ldr     rd, [rn]
     ldr     rt, [rn, imm]
     str     rt, [rn]
     str     rt, [rn, imm]
-    mov     rd,imm
-    mov     rd,rn
+    mov     rd, imm
+    mov     rd, rn
     sub{s}  rd, rn, imm
     sub{s}  rd, rn, rm
     add{s}  rd, rn, imm

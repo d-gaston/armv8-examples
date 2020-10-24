@@ -135,10 +135,20 @@ The sp (stack pointer) register will point to the end of this list
 mem = []
 
 '''
-A list that contains the mnemonic of instructions that you don want used 
-for a particular run of the the program
+Static Rule Variables:
+Specify properties that a program must have
+--disallow certain instructions
+--require/forbid recursion
 '''
+#A list that contains the mnemonic of instructions that you don want used 
+#for a particular run of the the program
 forbidden_instructions = []
+
+#recursion flags
+forbid_recursion = False
+require_recursion = False
+#loop flag
+forbid_loops = False
 
 '''
 This procedure reads the lines of a program (which can be a .s file
@@ -149,7 +159,6 @@ being populated. These flags change upon encountering specific
 keywords. Those keywords are .data or .bss for declaring constants
 and buffers and main: or _start: for code. 
 '''
-
 def parse(lines)->None:
     global STACK_SIZE
     #booleans for parsing .s file
@@ -259,10 +268,8 @@ def parse(lines)->None:
                 if(line[1] in sym_table):
                     sym_table[line[0]] = sym_table[line[1]]
                 else:
-                    sym_table[line[0]] = int(line[1])  
-    #verify that labels have not be redeclared
-    labels = [l for l in asm if(re.match('[._]*[a-z]+:',l))]
-    if(len(labels)>len(set(labels))):raise ValueError("You can't declare the same label more than once")
+                    sym_table[line[0]] = int(line[1])
+
     #extend mem to make room for the stack, then set the stack pointer
     mem.extend(list([0]*STACK_SIZE))
     reg['sp'] = len(mem) - 1
@@ -684,7 +691,85 @@ def execute(line:str):
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
     
-   
+
+'''
+Procedure to check that predefined rules about the code 
+have been adhered to
+Currently checks:
+--Code has been detected and parsed into the asm list
+--The same label is not declared twice
+--forbidden instructions are not used
+--recursion is used/not used, depending on flag
+--looping is not used, depending on flag
+Called in run() and debug(), so should be no
+need to call this separately 
+'''
+def check_static_rules():
+    global forbid_recursion, require_recursion
+    #Make sure code has been detected
+    if(not asm):
+        raise ValueError("no code detected (remember to include a _start: or main: label)")
+    
+    #label regex
+    lab = '[.]*[0-9a-z_]+'
+    
+    #To check for recursion:
+    #--get all labels that are called by the bl instruction
+    #--iterate over instruction list, and
+    #every time one of these labels is encountered, push
+    #onto a "scope" stack
+    #--when a bl <label>/ instruction is encountered,
+    #check the top of the scope stack. If the label and
+    #the TOS are the same, there is recursion.
+    #--when a ret instruction is encountered, pop the
+    #scope stack
+    scope = []
+    subroutine_labels = [re.findall(lab,x)[-1]+':' for x in asm \
+                            if(re.match('bl {}'.format(lab),x))]
+    recursed = False
+    for instr in asm:
+        if(instr in subroutine_labels):
+            #don't append the colon of the label
+            scope.append(instr[:-1])
+        if(re.match('ret', instr)):
+            scope.pop()
+        #match subroutine call
+        if(re.match('bl {}'.format(lab),instr)):
+            #last match is the label
+            label = re.findall(lab,instr)[-1]
+            #check top of stack
+            if(label in scope[-1:]):
+                recursed = True
+    if(forbid_recursion and recursed):
+        raise ValueError("recursion is not allowed")
+    if(require_recursion and not recursed):
+        raise ValueError("you must use recursion")
+    #To check for looping:
+    #--match any branch instruction except bl
+    #--if its label occurs earlier in the instruction
+    #listing than the branch, it is a loop
+    looped = False
+    for i in range(0,len(asm)-1):
+        #match branches except for bl
+        if(re.match('c?b(?!l )'.format(lab),asm[i])):
+            #last match is the label
+            label = re.findall(lab,asm[i])[-1]
+            if(asm.index(label+':') < i):
+                looped = True
+    if(forbid_loops and looped):
+         raise ValueError("you cannot loop") 
+    
+    #check for disallowed instructions:
+    #--extract mnemonics (string before the first space)
+    mnemonics = [i.split(" ")[0] for i in asm if " " in i]
+    forbid = set(mnemonics).intersection(forbidden_instructions)
+    if(forbid): raise ValueError("Use of {} disallowed".format(forbid))
+    
+    #verify that labels have not be redeclared
+    labels = [l for l in asm if(re.match('{}:'.format(lab),l))]
+    if(len(labels)>len(set(labels))):
+        raise ValueError("You can't declare the same label more than once")
+    
 '''
 This procedure runs the code normally to the end. Exceptions are raised
 for stack overflow, if no code is detected, and if any forbidden 
@@ -693,24 +778,21 @@ pc equals the length of the asm list
 '''
 def run():
     global pc, STACK_SIZE
-    #check for disallowed instructions:
-    #extract mnemonics (string before the first space)
-    mnemonics = [i.split(" ")[0] for i in asm if " " in i]
-    forbid = set(mnemonics).intersection(forbidden_instructions)
-    if(forbid):
-        raise ValueError("Use of {} disallowed".format(forbid))
-    #check for stack overflow
-    if(reg['sp'] < len(mem) - STACK_SIZE):
-        raise ValueError("stack overflow")
-    if(not asm):
-        raise ValueError("no code detected (remember to include a _start: or main: label)")
+    check_static_rules()
     while pc < len(asm):
+        #check for stack overflow    
+        if(reg['sp'] < len(mem) - STACK_SIZE):
+            raise ValueError("stack overflow")
         line=asm[pc]
         #if a label in encountered, inc pc and skip
         if(re.match('[.]*[a-z0-9_]+:$',line)):pc+=1;continue     
         execute(line)
         reg['xzr'] = 0
         pc+=1
+        
+   
+        
+
         
 '''
 Simple REPL for testing instructions. Limited to instructions that
@@ -753,6 +835,7 @@ def debug():
     cmd = ''
     prevcmd = ''
     breakpoints = set()
+    check_static_rules()
     while(True):
         if(pc == len(asm)): print('reached end of program. exiting...');break       
         line = asm[pc]
@@ -821,6 +904,8 @@ def reset():
     n_flag = False;z_flag = False
     pc = 0
     
+  
+   
 def main():
     if(not sys.argv[1:]):
         repl()
