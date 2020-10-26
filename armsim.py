@@ -706,12 +706,24 @@ need to call this separately
 '''
 def check_static_rules():
     global forbid_recursion, require_recursion
+    #label regex
+    lab = '[.]*[0-9a-z_]+'
+    
     #Make sure code has been detected
     if(not asm):
         raise ValueError("no code detected (remember to include a _start: or main: label)")
+    #check for disallowed instructions:
+    #--extract mnemonics (string before the first space)
+    mnemonics = [i.split(" ")[0] for i in asm if " " in i]
+    forbid = set(mnemonics).intersection(forbidden_instructions)
+    if(forbid): raise ValueError("Use of {} disallowed".format(forbid))
     
-    #label regex
-    lab = '[.]*[0-9a-z_]+'
+    #verify that labels have not be redeclared
+    labels = [l for l in asm if(re.match('{}:'.format(lab),l))]
+    if(len(labels)>len(set(labels))):
+        raise ValueError("You can't declare the same label more than once")    
+    
+    
     
     #To check for recursion:
     #--get all labels that are called by the bl instruction
@@ -723,7 +735,16 @@ def check_static_rules():
     #the TOS are the same, there is recursion.
     #--when a ret instruction is encountered, pop the
     #scope stack
-    scope = []
+    
+    scope = []    
+    #check that all BL instructions call existing labels
+    for x in asm:
+        if(re.match('bl {}'.format(lab),x)):
+            #last match is the label
+            label = re.findall(lab,x)[-1]  
+            if(label+':' not in asm):
+                raise ValueError(x + " is calling a nonexistent label")      
+
     subroutine_labels = [re.findall(lab,x)[-1]+':' for x in asm \
                             if(re.match('bl {}'.format(lab),x))]
     recursed = False
@@ -759,16 +780,7 @@ def check_static_rules():
     if(forbid_loops and looped):
          raise ValueError("you cannot loop") 
     
-    #check for disallowed instructions:
-    #--extract mnemonics (string before the first space)
-    mnemonics = [i.split(" ")[0] for i in asm if " " in i]
-    forbid = set(mnemonics).intersection(forbidden_instructions)
-    if(forbid): raise ValueError("Use of {} disallowed".format(forbid))
-    
-    #verify that labels have not be redeclared
-    labels = [l for l in asm if(re.match('{}:'.format(lab),l))]
-    if(len(labels)>len(set(labels))):
-        raise ValueError("You can't declare the same label more than once")
+
     
 '''
 This procedure runs the code normally to the end. Exceptions are raised
