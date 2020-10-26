@@ -17,7 +17,7 @@ each element represents one byte as an int. It attempts to execute
 each line of code by matching against regular expressions that encode 
 the instruction format, and updating global variables appropriately 
 based on that execution. All text is converted to lower case, 
-meaning that indentifiers are not case sensitive 
+meaning that identifiers are not case sensitive 
 (so variable = VARIABLE).
 Currently supported:
   System Calls:
@@ -46,15 +46,27 @@ Currently supported:
     rn = first register operand
     rm = second register operand
     imm = immediate value (aka a number)
-    ldp     rt, rt2, [rn], imm //post index
+    ldp     rt, rt2, [rn]
+    ldp     rt, rt2, [rn, imm]
+    ldp     rt, rt2, [rn, imm]! //pre index
+    ldp     rt, rt2, [rn], imm  //post index
+    stp     rt, rt2, [rn]
+    stp     rt, rt2, [rn, imm]
     stp     rt, rt2, [rn, imm]! //pre index
-    ldr     rd,=<var>
-    ldr     rd,[rn]
+    stp     rt, rt2, [rn], imm  //post index
+    ldr     rd, =<var>
+    ldr     rd, [rn]
     ldr     rt, [rn, imm]
+    ldr     rt, [rn, rm]
+    ldr     rt, [rn, imm]! //pre index
+    ldr     rt, [rn], imm  //post index
     str     rt, [rn]
     str     rt, [rn, imm]
-    mov     rd,imm
-    mov     rd,rn
+    str     rt, [rn, rm]
+    str     rt, [rn, imm]! //pre index
+    str     rt, [rn], imm  //post index
+    mov     rd, imm
+    mov     rd, rn
     sub{s}  rd, rn, imm
     sub{s}  rd, rn, rm
     add{s}  rd, rn, imm
@@ -291,7 +303,7 @@ will be properly converted
 -Error message is very general, so any syntax errors or use 
 of unsupported instructions will throw the same error.
 -The current regex will match illegal register names, so a
-KeyError exception will be thrown
+KeyError exception will be thrown in that case
 '''
 def execute(line:str):
     global pc,n_flag,z_flag
@@ -315,6 +327,42 @@ def execute(line:str):
     '''
     ldp instructions
     ''' 
+    #ldp rt, rt2, [rn]
+    #dollar sign so it doesn't match post index
+    if(re.match('ldp {},{},\[{}\]$'.format(rg,rg,rg),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]
+        addr = reg[rn]
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        addr += 8
+        reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        return
+    #ldp rt, rt2, [rn, imm]
+    #dollar sign so it doesn't match pre index
+    if(re.match('ldp {},{},\[{},{}\]$'.format(rg,rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn] + imm
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        addr += 8
+        reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        return
+    
+    #ldp rt, rt2, [rn, imm]! //pre index
+    if(re.match('ldp {},{},\[{},{}\]!'.format(rg,rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]
+        imm = int(re.findall(num,line)[-1],0)
+        reg[rn] += imm
+        addr = reg[rn]
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        addr += 8
+        reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        return
     #ldp rt, rt2, [rn], imm //post index
     if(re.match('ldp {},{},\[{}\],{}'.format(rg,rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
@@ -327,9 +375,34 @@ def execute(line:str):
         reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         reg[rn] += imm
         return
+
     '''
     stp instructions
     '''
+    #stp rt, rt2, [rn]
+    #dollar sign so it doesn't match post index
+    if(re.match('stp {},{},\[{}\]$'.format(rg,rg,rg),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]        
+        addr = reg[rn]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        addr += 8
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
+        return   
+    
+    #stp rt, rt2, [rn, imm]
+    #dollar sign so it doesn't match pre index
+    if(re.match('stp {},{},\[{},{}\]$'.format(rg,rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]
+        imm = int(re.findall(num,line)[-1],0)        
+        addr = reg[rn] + imm
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        addr += 8
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
+        return 
     #stp rt, rt2, [rn, imm]! //pre index
     if(re.match('stp {},{},\[{},{}\]!'.format(rg,rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
@@ -341,7 +414,19 @@ def execute(line:str):
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         addr += 8
         mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
-        return       
+        return
+    #stp rt, rt2, [rn], imm //post index
+    if(re.match('stp {},{},\[{}\],{}'.format(rg,rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rt2 = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]        
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        addr += 8
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
+        reg[rn] += imm
+        return
     '''
     ldr instructions
     '''
@@ -352,7 +437,8 @@ def execute(line:str):
         reg[rt] = sym_table[v]
         return
     #ldr rt, [rn]
-    if(re.match('ldr {},\[{}\]'.format(rg,rg),line)):
+    #dollar sign so it doesn't match post index
+    if(re.match('ldr {},\[{}\]$'.format(rg,rg),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         addr = reg[rn]
@@ -360,7 +446,8 @@ def execute(line:str):
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         return
     #ldr rt, [rn, imm]
-    if(re.match('ldr {},\[{},{}\]'.format(rg,rg,num),line)):
+    #dollar sign so it doesn't match pre index
+    if(re.match('ldr {},\[{},{}\]$'.format(rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
@@ -368,24 +455,81 @@ def execute(line:str):
         #load 8 bytes starting at addr and convert to int
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         return
+    #ldr rt, [rn, rm]
+    if(re.match('ldr {},\[{},{}\]'.format(rg,rg,rg),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        addr = reg[rn] + reg[rm]
+        #load 8 bytes starting at addr and convert to int
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        return
+    #ldr rt, [rn, imm]! //pre index
+    if(re.match('ldr {},\[{},{}\]!'.format(rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[-1],0)
+        reg[rn] += imm
+        addr = reg[rn]
+        #load 8 bytes starting at addr and convert to int
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        return
+    #ldr rt, [rn], imm //post index
+    if(re.match('ldr {},\[{}\],{}'.format(rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn]
+        #load 8 bytes starting at addr and convert to int
+        reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+        reg[rn] += imm
+        return
     '''
     str instructions
     '''
     #str rt, [rn]
-    if(re.match('str {},\[{}\]'.format(rg,rg),line)):
+    #dollar sign so it doesn't match post index
+    if(re.match('str {},\[{}\]$'.format(rg,rg),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         addr = reg[rn]
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return    
     #str rt, [rn, imm]
-    if(re.match('str {},\[{},{}\]'.format(rg,rg,num),line)):
+    #dollar sign so it doesn't match pre index
+    if(re.match('str {},\[{},{}\]$'.format(rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn] + imm
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return    
+    #str rt, [rn, rm]
+    if(re.match('str {},\[{},{}\]'.format(rg,rg,rg),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rm = re.findall(rg,line)[2]
+        addr = reg[rn] + reg[rm]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        return
+    #str rt, [rn, imm]! //pre index
+    if(re.match('str {},\[{},{}\]!'.format(rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[-1],0)
+        reg[rn] += imm
+        addr = reg[rn]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        return 
+    #str rt, [rn], imm //post index
+    if(re.match('str {},\[{}\],{}'.format(rg,rg,num),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        imm = int(re.findall(num,line)[-1],0)
+        addr = reg[rn]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        reg[rn] += imm
+        return 
     '''
     mov instructions
     '''
@@ -506,6 +650,7 @@ def execute(line:str):
     if(re.match('cmp {},{}'.format(rg,rg),line)):
         rn = re.findall(rg,line)[0]
         rm = re.findall(rg,line)[1]
+        assert rm != 'sp', "2nd register in cmp can't be sp"
         z_flag = True if reg[rn] == reg[rm] else False
         n_flag = True if reg[rn] < reg[rm] else False
         return
@@ -663,6 +808,7 @@ def execute(line:str):
             pc = len(asm)
         #write
         if(syscall==64):
+            assert reg['x0'] == 1, "Can only write to stdout! (x0 must contain #1)"
             length = reg['x2']
             addr = reg['x1']
             output = bytes(mem[addr:addr+length]).decode('ascii')
@@ -802,9 +948,6 @@ def run():
         reg['xzr'] = 0
         pc+=1
         
-   
-        
-
         
 '''
 Simple REPL for testing instructions. Limited to instructions that

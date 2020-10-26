@@ -9,7 +9,7 @@
 	+ **collatz.s** Asks the user to input a positive number and returns the number of steps for the number to converge on 1 using the Collatz Conjecture
 
 # To Compile
-`$ as name.s -o name.o && ld name.o -o name`
+`$ as -g name.s -o name.o && ld name.o -o name`
 
 where "name" is replaced with the example you want to run
 

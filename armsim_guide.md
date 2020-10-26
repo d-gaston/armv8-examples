@@ -27,13 +27,25 @@ Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be e
 *rm = second register operand*
 *imm = immediate value (aka a number)*
    
+    ldp     rt, rt2, [rn]
+    ldp     rt, rt2, [rn, imm]
+    ldp     rt, rt2, [rn, imm]! //pre index
     ldp     rt, rt2, [rn], imm  //post index
+    stp     rt, rt2, [rn]
+    stp     rt, rt2, [rn, imm]
     stp     rt, rt2, [rn, imm]! //pre index
+    stp     rt, rt2, [rn], imm  //post index
     ldr     rd, =<var>
     ldr     rd, [rn]
     ldr     rt, [rn, imm]
+    ldr     rt, [rn, rm]
+    ldr     rt, [rn, imm]! //pre index
+    ldr     rt, [rn], imm  //post index
     str     rt, [rn]
     str     rt, [rn, imm]
+    str     rt, [rn, rm]
+    str     rt, [rn, imm]! //pre index
+    str     rt, [rn], imm  //post index
     mov     rd, imm
     mov     rd, rn
     sub{s}  rd, rn, imm
