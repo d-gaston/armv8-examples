@@ -132,20 +132,40 @@ z_flag = False
 '''
 regexes for parsing instructions
 '''
-# the(?<!0) negative lookbehind is so that we don't 
-#match hex numbers like 0x40
 register_regex = '(?:lr|fp|sp|xzr|(?<!0)x[1-2][0-9](?![0-9])|(?<!0)x[0-9](?![0-9]))'
-#immediates (hex or dec) will be last in the operand list, even though
-#this matches registers like x12 we will only worry about
-#the match list starting from the end.
-#[-] makes sure negatives are detected
 num_regex = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
-var_regex = '[a-z]+'
+var_regex = '[a-z_]+'
 label_regex = '[.]*[0-9a-z_]+'
 '''
 regex explanations:
-
+------------------
+register_regex:
+    (?:
+        we will match any of the options between the |
+    (?<!0)
+        negative lookbehind is so that we don't match hex numbers like 0x40
+        as registers
+    x[1-2][0-9]
+        matches registers x10 - x29
+    (?![0-9])
+        negative lookahead to ensure that cases like x222 aren't matched
+    (?<!0)x[0-9](?![0-9])
+        same explanations as above, but this is for registers x0 - x9
+        again, we don't want to match registers like x90, so the negative
+        lookahead is used
+num_regex:
+    [-]?(?:0x[0-9a-f]+|[0-9]+)
+    [-]?
+        optionally matches a negative sign at the beginning
+    (?:0x[0-9a-f]+|[0-9]+)
+        matches either a hex number starting with 0x or a regular number
+label_regex    
+    [.]*
+        a label can start with zero or more periods
+    [0-9a-z_]+
+        followed by one or more alpanumeric symbols or underscore
 '''
+
 
 '''
 A map of string to int, where int will either be
