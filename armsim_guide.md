@@ -91,19 +91,7 @@ Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be e
     */
 -----
 ##  Debugger
-Run the program in debug mode by including the --debug flag: `python armsim.py <program>.s --debug` or`python armsim.py --debug <program>.s ` 
-Current commands are: 
-
-    p flags      print flags
-    p x1 x2..xn  print all registers listed
-    q            quit
-    n            next instruction
-    ls           list program with line numbers
-    b  <num>     breakpoint at line number
-    rb <num      remove breakpoint at line number
-    c            continue to next breakpoint
-    <enter>      repeat previous command
-    h            help (display this message)
+The debugger has been moved to a standalone program called armdb. See [the guide](armdb_guide.md) for usage instructions
 -----
 ## REPL
 There is a simple repl interface available for armsim that can be used to test out individual instructions or sequence of instructions. Currently it does not allow you to use any memory accessing instructions (such as ldr or str) but all instructions that only affect registers should work. Launch the repl by running `python armsim.py` with no files listed 

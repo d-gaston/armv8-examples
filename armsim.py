@@ -128,6 +128,25 @@ n_flag = False
 #zero flag
 z_flag = False 
 
+
+'''
+regexes for parsing instructions
+'''
+# the(?<!0) negative lookbehind is so that we don't 
+#match hex numbers like 0x40
+register_regex = '(?:lr|fp|sp|xzr|(?<!0)x[1-2][0-9](?![0-9])|(?<!0)x[0-9](?![0-9]))'
+#immediates (hex or dec) will be last in the operand list, even though
+#this matches registers like x12 we will only worry about
+#the match list starting from the end.
+#[-] makes sure negatives are detected
+num_regex = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
+var_regex = '[a-z]+'
+label_regex = '[.]*[0-9a-z_]+'
+'''
+regex explanations:
+
+'''
+
 '''
 A map of string to int, where int will either be
 an index into the mem array or a size in bytes.
@@ -302,26 +321,22 @@ Notes:
 will be properly converted
 -Error message is very general, so any syntax errors or use 
 of unsupported instructions will throw the same error.
--The current regex will match illegal register names, so a
-KeyError exception will be thrown in that case
+-If an illegal register is used, it will trigger a syntax error
 '''
 def execute(line:str):
     global pc,n_flag,z_flag
+    global register_regex,num_regex,var_regex,label_regex
+    
     #remove spaces around commas
     line = re.sub('[ ]*,[ ]*',',',line)
     #octothorpe is optional, remove it
     line = re.sub('#','',line) 
-    '''
-    regexes
-    '''
-    rg = '(?:lr|fp|sp|xzr|x[0-9]+)'
-    #immediates (hex or dec) will be last in the operand list, even though
-    #this matches registers like x12 we will only worry about
-    #the match list starting from the end.
-    #[-] makes sure negatives are detected
-    num = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
-    var = '[a-z]+'
-    lab = '[.]*[0-9a-z_]+'
+    
+    #use abbreviations for the regexes
+    rg = register_regex
+    num = num_regex
+    var = var_regex
+    lab = label_regex
     
     
     '''
@@ -851,9 +866,9 @@ Called in run() and debug(), so should be no
 need to call this separately 
 '''
 def check_static_rules():
-    global forbid_recursion, require_recursion
+    global forbid_recursion, require_recursion, label_regex
     #label regex
-    lab = '[.]*[0-9a-z_]+'
+    lab = label_regex
     
     #Make sure code has been detected
     if(not asm):
@@ -894,37 +909,44 @@ def check_static_rules():
     subroutine_labels = [re.findall(lab,x)[-1]+':' for x in asm \
                             if(re.match('bl {}'.format(lab),x))]
     recursed = False
-    for instr in asm:
-        if(instr in subroutine_labels):
-            #don't append the colon of the label
-            scope.append(instr[:-1])
-        if(re.match('ret', instr)):
-            scope.pop()
-        #match subroutine call
-        if(re.match('bl {}'.format(lab),instr)):
-            #last match is the label
-            label = re.findall(lab,instr)[-1]
-            #check top of stack
-            if(label in scope[-1:]):
-                recursed = True
-    if(forbid_recursion and recursed):
-        raise ValueError("recursion is not allowed")
-    if(require_recursion and not recursed):
-        raise ValueError("you must use recursion")
+    #only run this check if one of the rules is set
+    if(forbid_recursion or require_recursion):
+        for instr in asm:
+            if(instr in subroutine_labels):
+                #don't append the colon of the label
+                scope.append(instr[:-1])
+            if(re.match('ret', instr)):
+                try:
+                    scope.pop()
+                except IndexError:
+                    raise ValueError("Inconsistent labels")
+            #match subroutine call
+            if(re.match('bl {}'.format(lab),instr)):
+                #last match is the label
+                label = re.findall(lab,instr)[-1]
+                #check top of stack
+                if(label in scope[-1:]):
+                    recursed = True
+        if(forbid_recursion and recursed):
+            raise ValueError("recursion is not allowed")
+        if(require_recursion and not recursed):
+            raise ValueError("you must use recursion")
     #To check for looping:
     #--match any branch instruction except bl
     #--if its label occurs earlier in the instruction
     #listing than the branch, it is a loop
     looped = False
-    for i in range(0,len(asm)-1):
-        #match branches except for bl
-        if(re.match('c?b(?!l )'.format(lab),asm[i])):
-            #last match is the label
-            label = re.findall(lab,asm[i])[-1]
-            if(asm.index(label+':') < i):
-                looped = True
-    if(forbid_loops and looped):
-         raise ValueError("you cannot loop") 
+    if(forbid_loops):
+        for i in range(0,len(asm)-1):
+            #match branches except for bl
+            if(re.match('c?b(?!l )',asm[i])):
+                #last match is the label
+                label = re.findall(lab,asm[i])[-1]
+                if(asm.index(label+':') < i):
+                    looped = True
+        if(looped):
+             raise ValueError("you cannot loop")
+
     
 
     
@@ -935,7 +957,7 @@ instructions are found. The program is considered to have ended when
 pc equals the length of the asm list
 '''
 def run():
-    global pc, STACK_SIZE
+    global pc, STACK_SIZE, label_regex
     check_static_rules()
     while pc < len(asm):
         #check for stack overflow    
@@ -943,7 +965,7 @@ def run():
             raise ValueError("stack overflow")
         line=asm[pc]
         #if a label in encountered, inc pc and skip
-        if(re.match('[.]*[a-z0-9_]+:$',line)):pc+=1;continue     
+        if(re.match(label_regex+':',line)):pc+=1;continue     
         execute(line)
         reg['xzr'] = 0
         pc+=1
@@ -955,7 +977,7 @@ only affect registers (no memory access or jumps). Prints the flags
 and affected registers after executing each instruction.
 '''
 def repl():
-    global n_flag,z_flag
+    global n_flag,z_flag,register_regex
     print('armsim repl. operations on memory not supported\ntype q to quit')
     instr = ''
     while(True):
@@ -965,87 +987,13 @@ def repl():
         if(not instr):continue
         try:
             execute(instr)
-            for r in set(re.findall('x[0-9]+',instr)):
+            for r in set(re.findall(register_regex,instr)):
                 print("{}: {}".format(r,reg[r]))
             print("Z: {} N: {}".format(n_flag,z_flag))   
         except ValueError as e:
             print(e)
     return
 
-'''
-Simple debugger interface for running a .s file. Commands are
-p flags      print flags
-p x1 x2..xn  print all registers listed
-q            quit
-n            next instruction
-ls           list program with line numbers
-b  <num>     breakpoint at line number
-rb <num      remove breakpoint at line number
-c            continue to next breakpoint
-<enter>      repeat previous command
-h            help
-'''
-def debug():
-    global pc
-    cmd = ''
-    prevcmd = ''
-    breakpoints = set()
-    check_static_rules()
-    while(True):
-        if(pc == len(asm)): print('reached end of program. exiting...');break       
-        line = asm[pc]
-        cmd = input('> ').lower()
-        if(not cmd and prevcmd):
-            cmd = prevcmd
-        if(cmd.startswith('q')):break
-        elif(cmd.startswith('p ')):
-            for r in set(re.findall('(?:lr|fp|sp|xzr|x[0-9]+)',cmd)):
-                print("{}: {}".format(r,reg[r]))
-            if('flags' in cmd):
-                print("Z: {} N: {}".format(z,n))
-        elif(cmd.startswith('n')):
-            #if a label in encountered, inc pc and skip
-            if(re.match('[.]*[0-9a-z_]+:$',line)):pc+=1;print(line);continue
-            execute(line)
-            print(line)
-            pc+=1           
-        elif(cmd.startswith('b ')):
-            breakpoints.add(int(re.findall('[0-9]+',cmd)[0]))
-        elif(cmd.startswith('rb ')):
-            breakpoints.remove(int(re.findall('[0-9]+',cmd)[0]))
-        #Should continue until breakpoint but not execute it
-        elif(cmd.startswith('c')):
-            if(breakpoints):
-                while(pc not in breakpoints):
-                    #if a label in encountered, inc pc and skip
-                    if(re.match('[.]*[0-9a-z_]+:$',line)):pc+=1;continue
-                    execute(line)
-                    pc+=1
-                    line = asm[pc]
-                print("break at {}: {}".format(pc,line))           
-        elif(cmd.startswith('h')):
-            print("simple debugger interface for armsim. commands are\n"
-                 +"  p flags      print flags\n"
-                 +"  p x1 x2..xn  print all registers listed\n"
-                 +"  q            quit\n"
-                 +"  n            next instruction\n"
-                 +"  ls           list program with line numbers\n"
-                 +"  b  <num>     breakpoint at line number\n"
-                 +"  rb <num>     remove breakpoint at line number\n"
-                 +"  c            continue to next breakpoint\n"
-                 +"  <enter>      execute previous command\n"
-                 +"  h            help")
-        elif(cmd.startswith('ls')):
-            for i in range(0,len(asm)):
-                if(i==pc):
-                    #print arrow on current line
-                    print("->{}: {}".format(i,asm[i]))
-                else:
-                    print("  {}: {}".format(i,asm[i]))
-        else:
-            print("command not recognized")
-        prevcmd = cmd
-    return
     
 '''
 A procedure to return the simulator to it's initial state
@@ -1060,17 +1008,14 @@ def reset():
     pc = 0
     
   
-   
 def main():
     if(not sys.argv[1:]):
         repl()
     else:
-        _file = next(arg for arg in sys.argv if arg.endswith('.s'))
+        _file = sys.argv[1]
         with open(_file,'r') as f:
             parse(f.readlines())
-        if(any('--debug' in arg for arg in sys.argv)):
-            debug()
-        else:
-            run()
+        run()
+    return reg['x0']
 if __name__ == "__main__":
     main()
