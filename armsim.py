@@ -882,7 +882,8 @@ Currently checks:
 --forbidden instructions are not used
 --recursion is used/not used, depending on flag
 --looping is not used, depending on flag
---the only text that immediately follow a ret is a label
+--the only text that immediately follow an unconditional branch
+(ret or b) is a label, or it should be the last instruction
 Called in run() and debug(), so should be no
 need to call this separately 
 '''
@@ -906,18 +907,18 @@ def check_static_rules():
         raise ValueError("You can't declare the same label more than once")    
     
     
-    
+    '''
     #To check for recursion:
-    #--get all labels that are called by the bl instruction
-    #--iterate over instruction list, and
-    #every time one of these labels is encountered, push
-    #onto a "scope" stack
-    #--when a bl <label>/ instruction is encountered,
-    #check the top of the scope stack. If the label and
-    #the TOS are the same, there is recursion.
-    #--when a ret instruction is encountered, pop the
-    #scope stack
-    
+    --get all labels that are called by the bl instruction
+    --iterate over instruction list, and
+    every time one of these labels is encountered, push
+    onto a "scope" stack
+    --when a bl <label>/ instruction is encountered,
+    check the top of the scope stack. If the label and
+    the TOS are the same, there is recursion.
+    --The current scope ends when another subroutine label is 
+    encountered
+    '''
     scope = []    
     #check that all BL instructions call existing labels
     for x in asm:
@@ -962,14 +963,15 @@ def check_static_rules():
                     looped = True
         if(looped):
              raise ValueError("you cannot loop")
-
+    
     #Check for dead code after ret instruction
+    #The only instr that should come after a ret is a label
     for i in range(0,len(asm)-1):
         #don't care about last instruction
-        if(i != len(asm) -1):
-            if(asm[i] == 'ret'):
+        if(i != len(asm) - 1):
+            if(asm[i] == 'ret' or re.match('b {}'.format(lab),asm[i])):
                 assert re.match(lab+':',asm[i+1]), \
-                "Dead code detected after ret statement on line {}".format(i)
+                "Dead code detected after instruction {} " + asm[i]
         
 
     
