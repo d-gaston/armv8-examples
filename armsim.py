@@ -882,6 +882,7 @@ Currently checks:
 --forbidden instructions are not used
 --recursion is used/not used, depending on flag
 --looping is not used, depending on flag
+--the only text that immediately follow a ret is a label
 Called in run() and debug(), so should be no
 need to call this separately 
 '''
@@ -926,8 +927,8 @@ def check_static_rules():
             if(label+':' not in asm):
                 raise ValueError(x + " is calling a nonexistent label")      
 
-    subroutine_labels = [re.findall(lab,x)[-1]+':' for x in asm \
-                            if(re.match('bl {}'.format(lab),x))]
+    subroutine_labels = set([re.findall(lab,x)[-1]+':' for x in asm \
+                            if(re.match('bl {}'.format(lab),x))])
     recursed = False
     #only run this check if one of the rules is set
     if(forbid_recursion or require_recursion):
@@ -935,11 +936,6 @@ def check_static_rules():
             if(instr in subroutine_labels):
                 #don't append the colon of the label
                 scope.append(instr[:-1])
-            if(re.match('ret', instr)):
-                try:
-                    scope.pop()
-                except IndexError:
-                    raise ValueError("Inconsistent labels")
             #match subroutine call
             if(re.match('bl {}'.format(lab),instr)):
                 #last match is the label
@@ -967,7 +963,14 @@ def check_static_rules():
         if(looped):
              raise ValueError("you cannot loop")
 
-    
+    #Check for dead code after ret instruction
+    for i in range(0,len(asm)-1):
+        #don't care about last instruction
+        if(i != len(asm) -1):
+            if(asm[i] == 'ret'):
+                assert re.match(lab+':',asm[i+1]), \
+                "Dead code detected after ret statement on line {}".format(i)
+        
 
     
 '''
