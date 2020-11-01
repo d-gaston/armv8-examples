@@ -191,15 +191,19 @@ Specify properties that a program must have
 --disallow certain instructions
 --require/forbid recursion
 '''
-#A list that contains the mnemonic of instructions that you don want used 
+#A set that contains the mnemonic of instructions that you don want used 
 #for a particular run of the the program
-forbidden_instructions = []
+forbidden_instructions = set()
 
 #recursion flags
 forbid_recursion = False
 require_recursion = False
 #loop flag
 forbid_loops = False
+
+#lists to add labels that should be recursively called
+#(do not include colon)
+recursive_labels = set()
 
 '''
 This procedure reads the lines of a program (which can be a .s file
@@ -880,7 +884,7 @@ Currently checks:
 --Code has been detected and parsed into the asm list
 --The same label is not declared twice
 --forbidden instructions are not used
---recursion is used/not used, depending on flag
+--branches are calling existing labels
 --looping is not used, depending on flag
 --the only text that immediately follow an unconditional branch
 (ret or b) is a label, or it should be the last instruction
@@ -907,47 +911,15 @@ def check_static_rules():
         raise ValueError("You can't declare the same label more than once")    
     
     
-    '''
-    #To check for recursion:
-    --get all labels that are called by the bl instruction
-    --iterate over instruction list, and
-    every time one of these labels is encountered, push
-    onto a "scope" stack
-    --when a bl <label>/ instruction is encountered,
-    check the top of the scope stack. If the label and
-    the TOS are the same, there is recursion.
-    --The current scope ends when another subroutine label is 
-    encountered
-    '''
     scope = []    
-    #check that all BL instructions call existing labels
-    for x in asm:
-        if(re.match('bl {}'.format(lab),x)):
+    #check that all branch instructions call existing labels
+    for instr in asm:
+        if(re.match('c?b(.*?)',instr)):
             #last match is the label
-            label = re.findall(lab,x)[-1]  
+            label = re.findall(lab,instr)[-1]  
             if(label+':' not in asm):
-                raise ValueError(x + " is calling a nonexistent label")      
-
-    subroutine_labels = set([re.findall(lab,x)[-1]+':' for x in asm \
-                            if(re.match('bl {}'.format(lab),x))])
-    recursed = False
-    #only run this check if one of the rules is set
-    if(forbid_recursion or require_recursion):
-        for instr in asm:
-            if(instr in subroutine_labels):
-                #don't append the colon of the label
-                scope.append(instr[:-1])
-            #match subroutine call
-            if(re.match('bl {}'.format(lab),instr)):
-                #last match is the label
-                label = re.findall(lab,instr)[-1]
-                #check top of stack
-                if(label in scope[-1:]):
-                    recursed = True
-        if(forbid_recursion and recursed):
-            raise ValueError("recursion is not allowed")
-        if(require_recursion and not recursed):
-            raise ValueError("you must use recursion")
+                raise ValueError(instr + " is calling a nonexistent label")      
+                
     #To check for looping:
     #--match any branch instruction except bl
     #--if its label occurs earlier in the instruction
@@ -964,37 +936,57 @@ def check_static_rules():
         if(looped):
              raise ValueError("you cannot loop")
     
-    #Check for dead code after ret instruction
-    #The only instr that should come after a ret is a label
+    #Check for dead code after ret or b instruction
+    #The only instr that should come after a ret or b is a label
     for i in range(0,len(asm)-1):
         #don't care about last instruction
         if(i != len(asm) - 1):
             if(asm[i] == 'ret' or re.match('b {}'.format(lab),asm[i])):
                 assert re.match(lab+':',asm[i+1]), \
                 "Dead code detected after instruction {} " + asm[i]
-        
 
-    
 '''
 This procedure runs the code normally to the end. Exceptions are raised
-for stack overflow, if no code is detected, and if any forbidden 
-instructions are found. The program is considered to have ended when
-pc equals the length of the asm list
+for violated static checks, stack overflow, and if recursion is (un)used
+contrary to the forbid/require recursion flags. The program is considered to 
+have ended when pc equals the length of the asm list
 '''
 def run():
     global pc, STACK_SIZE, label_regex
     check_static_rules()
+    recursed_labels = set()
     while pc < len(asm):
+        line=asm[pc]
+        #This checks for recursion by determining if the current pc
+        #is saved in the link register at the time of a bl instr. If so, 
+        #this is the 2nd time this bl instr has been reached. 
+        #Will not detect a recursive procedure if termination condition
+        #is immediately met.
+        if(re.match('bl {}'.format(label_regex),line)):
+            if(pc == reg['lr']):
+                #last match is the label
+                label = re.findall(label_regex,line)[-1]
+                recursed_labels.add(label)
+        
         #check for stack overflow    
         if(reg['sp'] < len(mem) - STACK_SIZE):
             raise ValueError("stack overflow")
-        line=asm[pc]
+
         #if a label in encountered, inc pc and skip
         if(re.match(label_regex+':',line)):pc+=1;continue     
         execute(line)
         reg['xzr'] = 0
         pc+=1
-        
+    #empty recursed_labels list means no recursion happened
+    if(recursed_labels and forbid_recursion):
+        raise ValueError("recursion occurred in program but it should not have")
+    if(not recursed_labels and require_recursion):
+        raise ValueError("recursion did not occur in program but it should have")
+    #case where there was recursion, but not for the labels specified
+    #in the recursive_labels list. (recursive_labels should be a subset
+    #of recursed_labels)
+    if(recursed_labels and recursive_labels - recursed_labels):
+        raise ValueError("recursive calls do not include required call to {}".format(recursive_labels))
         
 '''
 Simple REPL for testing instructions. Limited to instructions that
@@ -1025,6 +1017,11 @@ A procedure to return the simulator to it's initial state
 '''
 def reset():
     global reg,z_flag,n_flag,pc
+    global require_recursion,forbid_recursion,forbid_loops
+    forbidden_instructions.clear()
+    require_recursion = False
+    forbid_recursion = False
+    forbid_loops = False
     reg = {r:0 for r in reg}
     mem.clear()
     asm.clear()
