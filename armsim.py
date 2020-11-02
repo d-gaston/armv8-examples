@@ -128,6 +128,14 @@ n_flag = False
 #zero flag
 z_flag = False 
 
+'''
+dict to hold how often a label has been seen. Intialized in the
+run() procedure, then updated in the main loop every time a label is
+hit. Since the BL instruction does not cause the pc to actually
+land on the label, label_hit_counts must also be updated in execute()
+when a BL instruction is matched
+'''
+label_hit_counts = {}
 
 '''
 regexes for parsing instructions
@@ -197,7 +205,7 @@ forbidden_instructions = set()
 
 #recursion flags
 forbid_recursion = False
-require_recursion = False
+require_recursion = True
 #loop flag
 forbid_loops = False
 
@@ -348,7 +356,7 @@ of unsupported instructions will throw the same error.
 -If an illegal register is used, it will trigger a syntax error
 '''
 def execute(line:str):
-    global pc,n_flag,z_flag
+    global pc,n_flag,z_flag,label_hit_counts
     global register_regex,num_regex,var_regex,label_regex
     
     #remove spaces around commas
@@ -830,6 +838,8 @@ def execute(line:str):
         label = re.findall(lab,line)[-1]
         reg['lr'] = pc
         pc=asm.index(label+':')
+        #label_hit_counts must be updated here to count procedure calls
+        label_hit_counts[label+':'] += 1
         return
     #ret 
     if(re.match('ret',line)):
@@ -911,7 +921,6 @@ def check_static_rules():
         raise ValueError("You can't declare the same label more than once")    
     
     
-    scope = []    
     #check that all branch instructions call existing labels
     for instr in asm:
         if(re.match('c?b(.*?)',instr)):
@@ -952,9 +961,11 @@ contrary to the forbid/require recursion flags. The program is considered to
 have ended when pc equals the length of the asm list
 '''
 def run():
-    global pc, STACK_SIZE, label_regex
+    global pc, STACK_SIZE, label_regex,label_hit_counts
     check_static_rules()
     recursed_labels = set()
+    labels = [l for l in asm if(re.match('{}:'.format(label_regex),l))]
+    label_hit_counts = dict(zip(labels, [0]*len(labels)))
     while pc < len(asm):
         line=asm[pc]
         #This checks for recursion by determining if the current pc
@@ -973,7 +984,10 @@ def run():
             raise ValueError("stack overflow")
 
         #if a label in encountered, inc pc and skip
-        if(re.match(label_regex+':',line)):pc+=1;continue     
+        #also update label_hit_counts
+        if(re.match(label_regex+':',line)):
+            pc+=1;label_hit_counts[line]+=1
+            continue     
         execute(line)
         reg['xzr'] = 0
         pc+=1
@@ -987,7 +1001,7 @@ def run():
     #of recursed_labels)
     if(recursed_labels and recursive_labels - recursed_labels):
         raise ValueError("recursive calls do not include required call to {}".format(recursive_labels))
-        
+   
 '''
 Simple REPL for testing instructions. Limited to instructions that
 only affect registers (no memory access or jumps). Prints the flags
