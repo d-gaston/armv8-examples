@@ -12,13 +12,15 @@ A simple debugger interface for armsim. To run: `python armdb.py <program>.s` Th
     cmr <regs>:
         This command clears the listed monitored registers. Illegal registers are silently ignored. If no registers are listed, ALL monitored registers are cleared
     b <nums>:
-        Adds breakpoints at the INSTRUCTIONS (not source line #'s) specified. Checks that the breakpoints are legal (in range). The user is informed of any illegal breakpoints
+        Adds breakpoints at the INSTRUCTIONS (not source line #'s) specified. Checks that the breakpoints are legal (in range, not labels). The user is informed of any illegal breakpoints
     rb <nums>
         Removes the specified breakpoints. If a nonexistent breakpoint is listed the user is informed. If no breakpoints are listed ALL of the breakpoints are removed
     c:
         Continues to the next breakpoint or to the end of the program. Executed lines and monitored registers are printed if a breakpoint is reached. If the end of the program is reached, monitored registers are printed
     ls:
         Lists the instructions with their INSTRUCTION NUMBER, NOT source line number, with an indicator showing the current instruction
+    lhc:
+        Lists the L_abel H_it C_ounts for each label in the program, displayed in sorted order
     <enter>
         Pressing enter with no other input executes the last executed command. If there is no previous command the user is informed of this.
     h:

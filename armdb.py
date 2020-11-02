@@ -31,8 +31,8 @@ cmr <regs>:
     registers are cleared
 b <nums>:
     Adds breakpoints at the INSTRUCTIONS (not source line #'s) specified
-    Checks that the breakpoints are legal (in range). The user is 
-    informed of any illegal breakpoints
+    Checks that the breakpoints are legal (in range, not labels). The 
+    user is informed of any illegal breakpoints
 rb <nums>
     Removes the specified breakpoints. If a nonexistent breakpoint is
     listed the user is informed. If no breakpoints are listed ALL of
@@ -45,6 +45,9 @@ c:
 ls:
     Lists the instructions with their INSTRUCTION NUMBER, NOT source
     line number, with an indicator showing the current instruction
+lhc:
+    Lists the L_abel H_it C_ounts for each label in the program, displayed
+    in sorted order
 <enter>
     Pressing enter with no other input executes the last executed 
     command. If there is no previous command the user is informed of this
@@ -69,6 +72,7 @@ help_str = "simple debugger interface for armsim. commands are\n"\
 +"  rb           remove all breakpoints\n"\
 +"  c            continue to next breakpoint or end of program\n"\
 +"  ls           list program with instruction numbers\n"\
++"  lhc          print the current label hit counts\n"\
 +"  <enter>      execute previous command\n"\
 +"  h            help\n"\
 +"  q            quit\n"
@@ -102,11 +106,15 @@ def main():
     #than having a random order
     used_regs.sort()
     
+    labels = [l for l in asm if(re.match('{}:'.format(lab),l))]
+    armsim.label_hit_counts = dict(zip(labels, [0]*len(labels)))
+    
     line = asm[armsim.pc]
     #print first line
     #if a label in encountered, inc armsim.pc and skip
     if(re.match(lab+':',line)):
         print("<label {}>".format(line));armsim.pc+=1
+        armsim.label_hit_counts[line] += 1
     else:
         print("\t"+line)    
        
@@ -150,6 +158,8 @@ def main():
             for bp in bps: 
                 if(int(bp) not in range(0,len(asm)-1)):
                     print("breakpoint {} out of range".format(bp))
+                elif(re.match(lab+':',asm[int(bp)])):
+                        print("cannot use label as breakpoint")    
                 else:
                     breakpoints.add(int(bp))
             if(not bps):print("no breakpoints listed")
@@ -166,16 +176,17 @@ def main():
         #Should continue until breakpoint but not execute it
         elif(cmd == 'c'):
                 while(armsim.pc < len(asm)):
-                    #if a label in encountered, inc armsim.pc and skip
-                    line = asm[armsim.pc]
-                    if(re.match(lab+':',line)):
-                        armsim.pc+=1;continue
-                    armsim.execute(line)
-                    armsim.pc+=1
                     if(armsim.pc in breakpoints): 
                         print("break at {}: {}".format(armsim.pc,line))
                         print_regs(monitors)   
-                        break
+                        break                    
+                    line = asm[armsim.pc]
+                    #if a label in encountered, inc armsim.pc and skip
+                    if(re.match(lab+':',line)):
+                        armsim.label_hit_counts[line] += 1
+                        armsim.pc+=1;continue
+                    armsim.execute(line)
+                    armsim.pc+=1
                     reg['xzr'] = 0
                 #if program has ended we can print monitors and msg
                 if(armsim.pc >= len(asm)):
@@ -188,6 +199,10 @@ def main():
                     print("->{}: {}".format(i,asm[i]))
                 else:
                     print("  {}: {}".format(i,asm[i]))
+        elif(cmd == 'lhc'):
+            for label in sorted(armsim.label_hit_counts):
+                print("{} : {}".format(label,armsim.label_hit_counts[label]), end = ' | ')
+            print()
         elif(cmd == 'h'):
             print(help_str)
         elif(cmd == 'q'):break
