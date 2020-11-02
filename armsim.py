@@ -205,7 +205,7 @@ forbidden_instructions = set()
 
 #recursion flags
 forbid_recursion = False
-require_recursion = True
+require_recursion = False
 #loop flag
 forbid_loops = False
 
