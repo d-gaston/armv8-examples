@@ -1,6 +1,7 @@
 # armdb Guide
 --------------------
 A simple debugger interface for armsim. To run: `python armdb.py <program>.s` The high level operation is that a line of the assembly is printed out, then the user is prompted for a command (i.e. the line will not execute automatically), and then the command is executed. The supported commands can be read with the h command, here is a more detailed description of their semantics:
+
     p:
         The program code is scanned and the used registers are extracted. Each register in this list is printed on a single line with its value followed by another line with the Z and N flags
     stk <num>:
