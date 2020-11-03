@@ -142,7 +142,7 @@ regexes for parsing instructions
 '''
 register_regex = '(?:lr|fp|sp|xzr|(?<!0)x[1-2][0-9](?![0-9])|(?<!0)x[0-9](?![0-9]))'
 num_regex = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
-var_regex = '[a-z_]+'
+var_regex = '[a-z_]+[0-9a-z_]*'
 label_regex = '[.]*[0-9a-z_]+'
 '''
 regex explanations:
@@ -154,7 +154,7 @@ register_regex:
         negative lookbehind is so that we don't match hex numbers like 0x40
         as registers
     x[1-2][0-9]
-        matches registers x10 - x29
+        matches registers x10 - x29 (fp is used instead of x29, should fix this)
     (?![0-9])
         negative lookahead to ensure that cases like x222 aren't matched
     (?<!0)x[0-9](?![0-9])
