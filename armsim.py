@@ -133,7 +133,7 @@ dict to hold how often a label has been seen. Intialized in the
 run() procedure, then updated in the main loop every time a label is
 hit. Since the BL instruction does not cause the pc to actually
 land on the label, label_hit_counts must also be updated in execute()
-when a BL instruction is matched
+when a BL instruction is matched (colon must be included)
 '''
 label_hit_counts = {}
 
@@ -199,7 +199,7 @@ Specify properties that a program must have
 --disallow certain instructions
 --require/forbid recursion
 '''
-#A set that contains the mnemonic of instructions that you don want used 
+#A set that contains the mnemonic of instructions that you don't want used 
 #for a particular run of the the program
 forbidden_instructions = set()
 
@@ -843,7 +843,10 @@ def execute(line:str):
         return
     #ret 
     if(re.match('ret',line)):
-        pc = reg['lr']
+        addr = reg['lr']
+        if(addr not in range(0,len(asm))):
+            raise ValueError("ret: address in LR ({}) out of range".format(addr))
+        pc = addr
         return
     '''
     system call handler

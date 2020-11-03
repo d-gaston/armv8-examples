@@ -63,6 +63,8 @@ debugger exits
 
 help_str = "simple debugger interface for armsim. commands are\n"\
 +"  p            print all registers used in program and flags\n"\
++"  stk <num>    print the n top elements of the stack\n"\
++"  stk          print the 10 top elements of the stack\n"\
 +"  n            next instruction\n"\
 +"  mr  <regs>   monitored register(s) will print after each line\n"\
 +"  cmr <regs>   clear specified register(s) from monitor list\n"\
@@ -95,11 +97,14 @@ def main():
     #Aliases for armsim fields (reduce using armsim. everywhere)
     reg = armsim.reg
     asm = armsim.asm
+    mem = armsim.mem
     lab = armsim.label_regex
     rg = armsim.register_regex
     cmd = ''
     prevcmd = ' '
     breakpoints = set()
+    #flag to use so that program can continue from a breakpoint
+    came_from_bp = False
     monitors = set()
     used_regs = list(set(chain(*[re.findall(rg,instr) for instr in asm])))
     #sorting isn't perfect, since x10 will come after x1, but it's better
@@ -131,6 +136,24 @@ def main():
         if(cmd == 'p'):
             print_regs(used_regs)    
             print("Z: {} N: {}".format(armsim.z_flag,armsim.n_flag))
+        elif(cmd.startswith('stk')):
+            numList = re.findall('[0-9]+',cmd)
+            print("SP: {}".format(hex((reg['sp']))))
+            if(numList):
+                #should only be 1 element in numList
+                num = int(numList[0])
+                #stack elements are stored as a list of bytes
+                for i in range(0, num*8,8):
+                    #remember stack goes down, so move up
+                    addr = reg['sp']+i
+                    #convert list of 8 bytes to value
+                    value = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+                    print("<sp+{}>  {}".format(i,hex(value)))
+            else:
+                for i in range(0,80,8):
+                    addr = reg['sp']+i
+                    value = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+                    print("<sp+{}>  {}".format(i,hex(value)))
         elif(cmd == 'n'):
             armsim.execute(line)
             armsim.pc+=1
@@ -156,7 +179,7 @@ def main():
         elif(cmd.startswith('b ')):
             bps = set(re.findall('[0-9]+',cmd))
             for bp in bps: 
-                if(int(bp) not in range(0,len(asm)-1)):
+                if(int(bp) not in range(0,len(asm))):
                     print("breakpoint {} out of range".format(bp))
                 elif(re.match(lab+':',asm[int(bp)])):
                         print("cannot use label as breakpoint")    
@@ -176,17 +199,21 @@ def main():
         #Should continue until breakpoint but not execute it
         elif(cmd == 'c'):
                 while(armsim.pc < len(asm)):
-                    if(armsim.pc in breakpoints): 
-                        print("break at {}: {}".format(armsim.pc,line))
-                        print_regs(monitors)   
-                        break                    
-                    line = asm[armsim.pc]
                     #if a label in encountered, inc armsim.pc and skip
+                    line = asm[armsim.pc]
                     if(re.match(lab+':',line)):
                         armsim.label_hit_counts[line] += 1
                         armsim.pc+=1;continue
+                    #without the came_from_bp flag, the c command will
+                    #keep breaking at the same breakpoint
+                    if(armsim.pc in breakpoints and not came_from_bp): 
+                        print("break at {}: {}".format(armsim.pc,line))
+                        print_regs(monitors)
+                        came_from_bp = True
+                        break
                     armsim.execute(line)
                     armsim.pc+=1
+                    came_from_bp = False
                     reg['xzr'] = 0
                 #if program has ended we can print monitors and msg
                 if(armsim.pc >= len(asm)):
