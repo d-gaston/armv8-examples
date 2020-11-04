@@ -53,7 +53,7 @@ Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be e
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
     asr     rd, rn, imm
-    lsr     rd, rn, imm
+    lsl     rd, rn, imm
     udiv    rd, rn, rm
     sdiv    rd, rn, rm
     mul     rd, rn, rm

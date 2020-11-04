@@ -72,7 +72,7 @@ Currently supported:
     add{s}  rd, rn, imm
     add{s}  rd, rn, rm
     asr     rd, rn, imm
-    lsr     rd, rn, imm
+    lsl     rd, rn, imm
     udiv    rd, rn, rm
     sdiv    rd, rn, rm
     mul     rd, rn, rm
