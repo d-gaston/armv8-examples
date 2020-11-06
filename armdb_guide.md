@@ -8,6 +8,13 @@ A simple debugger interface for armsim. To run: `python armdb.py <program>.s` Th
     stk <num>:
         Prints out the <num> top elements of the stack. If no number is specified, the default number of 
         elements to print out is 10
+    d  <vars>:
+        Display the memory contents pointed at by the variable. Output depends
+        on the directive the variable was declared with:
+        asciz : list of chars
+        8byte : list of 8 byte integers
+        space : list of bytes
+        =     : integer value of variable
     q:
         Quits the debugger by breaking out of the main loop
     n:

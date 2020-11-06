@@ -14,8 +14,9 @@ Can start with zero or more periods followed by any number of numbers, letters, 
 Directives are information for an assembler. These aren't needed for writing simple programs to test out instructions
 * .data    (declare a region of initialized data)
     * .asciz   (declare a string in the .data section)
-    * . -      (find the length of the previously declared item within the .data section)
+    * .8byte   (declare an array of 8 bytes words in the .data section)
     * =        (assignment of a variable to a constant value within the .data section)
+    * = . -      (find the length of the previously declared item within the .data section)
 * .bss     (declare a region of unitialized data)
     * .space   (declare an empty buffer in the .bss section)
 ### Registers

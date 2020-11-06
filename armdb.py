@@ -16,6 +16,16 @@ p:
     The program code is scanned and the used registers are extracted
     Each register in this list is printed on a single line with its value
     followed by another line with the Z and N flags
+stk <num>:
+    Prints out the <num> top elements of the stack. If no number is specified, the default number of 
+    elements to print out is 10
+d  <vars>:
+    Display the memory contents pointed at by the variable. Output depends
+    on the directive the variable was declared with:
+    asciz : list of chars
+    8byte : list of 8 byte integers
+    space : list of bytes
+    =     : integer value of variable
 n:
     Executes the line displayed above the prompt, increments the program
     counter, resets xzr to zero, and prints monitored registers, if any
@@ -65,6 +75,7 @@ help_str = "simple debugger interface for armsim. commands are\n"\
 +"  p            print all registers used in program and flags\n"\
 +"  stk <num>    print the n top elements of the stack\n"\
 +"  stk          print the 10 top elements of the stack\n"\
++"  d <vars>     display the memory held at each <var> as bytes\n"\
 +"  n            next instruction\n"\
 +"  mr  <regs>   monitored register(s) will print after each line\n"\
 +"  cmr <regs>   clear specified register(s) from monitor list\n"\
@@ -100,6 +111,7 @@ def main():
     mem = armsim.mem
     lab = armsim.label_regex
     rg = armsim.register_regex
+    var = armsim.var_regex
     cmd = ''
     prevcmd = ' '
     breakpoints = set()
@@ -154,6 +166,13 @@ def main():
                     addr = reg['sp']+i
                     value = int.from_bytes(bytes(mem[addr:addr+8]),'little')
                     print("<sp+{}>  {}".format(i,hex(value)))
+        elif(cmd.startswith('d ')):
+            variables = set(re.findall(var,cmd.replace('d ', '')))
+            if(variables):
+                for v in variables:
+                    print(str(armsim.getdata(v)).replace('[','').replace(']',''))
+            else:
+                print("no labels specified")
         elif(cmd == 'n'):
             armsim.execute(line)
             armsim.pc+=1

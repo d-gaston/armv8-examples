@@ -34,8 +34,9 @@ Currently supported:
   Directives:
     .data    (declare a region of initialized data)
         .asciz   (declare a string in the .data section)
-        . -      (find the length of the previously declared item within the .data section)
+        .8byte   (declare an array of 8 bytes words in the .data section)
         =        (assignment of a variable to a constant value within the .data section)
+        = . -      (find the length of the previously declared item within the .data section)
     .bss     (declare a region of unitialized data)
         .space   (declare an empty buffer in the .bss section)
 
@@ -180,6 +181,14 @@ A map of string to int, where int will either be
 an index into the mem array or a size in bytes.
 Basically, vars declared with a : will be addresses and
 vars declared with = will be literals
+Additionally the directive type will be stored in the following way:
+-an key in the form <var>_TYPE_ will map to
+0 -> asciz
+1 -> 8byte
+2 -> space
+NB. vars declared with = (ie length variables) are just stored in
+sym_table as numbers, so they don't have a type
+Types are stored primarily for the get_data procedure
 '''
 sym_table = {}
 '''
@@ -281,6 +290,7 @@ def parse(lines)->None:
                 line = line.split(":.asciz ")
                 sym_table[line[0]] = index
                 sym_table[line[0]+"_SIZE_"] = len(line[1])
+                sym_table[line[0]+"_TYPE_"] = 0
                 mem.extend(list(bytes(line[1],'ascii')))
                 index+=len(list(line[1]))
                 continue
@@ -295,18 +305,33 @@ def parse(lines)->None:
             if(re.match('.*:\.space.*',line)):
                 line = line.lower()
                 line = line.split(":.space ")
+                size = sym_table[line[1]] if line[1] in sym_table else int(line[1])
+                mem.extend(list([0]*size))    
                 sym_table[line[0]] = index
-                if(line[1] in sym_table):
-                    size = sym_table[line[1]]
-                    mem.extend(list([0]*size))
-                    index+=size
-                    sym_table[line[0]+"_SIZE_"] = size
-                else:
-                    size = int(line[1])
-                    mem.extend(list([0]*size))
-                    index+=size
-                    sym_table[line[0]+"_SIZE_"] = size
+                sym_table[line[0]+"_TYPE_"] = 2
+                sym_table[line[0]+"_SIZE_"] = size
+                index+=size
                 continue    
+                
+            '''
+            The .8byte directive is followed by a comma separated list
+            of numbers. Each number will be an 8 byte entry in mem.
+            Additionally, the _SIZE_ shadow entry will be created
+            '''
+            if(re.match('.*:\.8byte.*',line)):
+                line = line.lower()
+                line = line.split(":.8byte ")
+                numbers = list(map(int, line[1].split(',')))
+                #each number is 8 bytes
+                size = len(numbers) * 8
+                for n in numbers:
+                    mem.extend(list(int.to_bytes(n,8,'little')))
+                
+                sym_table[line[0]] = index
+                sym_table[line[0]+"_SIZE_"] = size
+                sym_table[line[0]+"_TYPE_"] = 1 
+                index+=size 
+                continue            
             '''
             If using the len=.-str idiom to store str length, we
             lookup the length of str that we stored in sym_table
@@ -503,7 +528,8 @@ def execute(line:str):
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         return
     #ldr rt, [rn, rm]
-    if(re.match('ldr {},\[{},{}\]'.format(rg,rg,rg),line)):
+    #dollar sign so it doesn't match pre index
+    if(re.match('ldr {},\[{},{}\]$'.format(rg,rg,rg),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -542,6 +568,15 @@ def execute(line:str):
         addr = reg[rn]
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return    
+    #str rt, [rn, rm]
+    #dollar sign so it doesn't match pre index
+    if(re.match('str {},\[{},()\]$'.format(rg,rg,rg),line)):
+        rt = re.findall(rg,line)[0]
+        rn = re.findall(rg,line)[1]
+        rn = re.findall(rg,line)[2]
+        addr = reg[rn] + reg[rm]
+        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
+        return    
     #str rt, [rn, imm]
     #dollar sign so it doesn't match pre index
     if(re.match('str {},\[{},{}\]$'.format(rg,rg,num),line)):
@@ -552,7 +587,8 @@ def execute(line:str):
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return    
     #str rt, [rn, rm]
-    if(re.match('str {},\[{},{}\]'.format(rg,rg,rg),line)):
+    #dollar sign so it doesn't match pre index
+    if(re.match('str {},\[{},{}\]$'.format(rg,rg,rg),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -891,6 +927,66 @@ def execute(line:str):
     
 
 '''
+Takes a variable declared in the data or bss section
+and returns the data (always as a list)at that address in a format 
+that makes sense according to the directive type. The directive type
+was stored in sym_table during the parse stage:
+0 -> asciz
+1 -> 8byte
+2 -> space
+Since the size of each variable is stored we can print out all data
+
+Examples:
+
+Given
+message: .asciz "hello world\n"
+get_data('message')
+returns the list
+['h','e','l','l','o',' ','w','o','r','l','d','\n']
+
+Given
+array: .8byte 89,80,83,88,86,82,87,81,84,85
+get_data('array')
+returns the list
+[89,80,83,88,86,82,87,81,84,85]
+
+Given
+len = 12
+get_data('len')
+returns the list
+[12]
+
+Given
+steps: .space 8
+get_data('steps')
+returns the list
+[0,0,0,0,0,0,0]
+(assuming nothing has been put there)
+'''
+def getdata(variable:str):
+    
+    if( variable+'_TYPE_' in sym_table):
+        index = sym_table[variable]
+        size = sym_table[variable+"_SIZE_"]
+        #asciz
+        if(sym_table[variable+'_TYPE_'] == 0):
+            return list(bytes(mem[index:index+size]).decode('ascii'))
+        #8byte
+        elif(sym_table[variable+'_TYPE_'] == 1):
+            lst = []
+            for i in range(0,size,8):
+                lst.append(int.from_bytes(bytes(mem[index+i:index+i+8]),'little'))
+            return lst
+        #space
+        elif(sym_table[variable+'_TYPE_'] == 2):
+            return list(bytes(mem[index:index+size]))
+        else:
+            print(variable+': variable not found')
+    else:
+        return [sym_table[variable]]
+        
+
+'''
 Procedure to check that predefined rules about the code 
 have been adhered to
 Currently checks:
@@ -985,6 +1081,8 @@ def run():
         #check for stack overflow    
         if(reg['sp'] < len(mem) - STACK_SIZE):
             raise ValueError("stack overflow")
+        if(reg['sp'] > len(mem)):
+            raise ValueError("stack underflow (make sure to allocate space)")
 
         #if a label in encountered, inc pc and skip
         #also update label_hit_counts
