@@ -141,29 +141,29 @@ label_hit_counts = {}
 '''
 regexes for parsing instructions
 '''
-register_regex = '(?:lr|fp|sp|xzr|(?<!0)x[1-2][0-9](?![0-9])|(?<!0)x[0-9](?![0-9]))'
-num_regex = '[-]?(?:0x[0-9a-f]+|[0-9]+)'
-var_regex = '[a-z_]+[0-9a-z_]*'
-label_regex = '[.]*[0-9a-z_]+'
+register_regex = '(?:lr|fp|sp|xzr|(?<!\w)x[1-2]\d(?!\w)|(?<!\w)x\d(?!\w))'
+num_regex = '[-]?(?:0x[0-9a-f]+|\d+)'
+var_regex = '[a-z_]+\w*'
+label_regex = '[.]*\w+'
 '''
 regex explanations:
 ------------------
 register_regex:
     (?:
         we will match any of the options between the |
-    (?<!0)
+    (?<!w)
         negative lookbehind is so that we don't match hex numbers like 0x40
-        as registers
-    x[1-2][0-9]
+        as registers or labels that happen to have register names
+    x[1-2]\d
         matches registers x10 - x29 (fp is used instead of x29, should fix this)
-    (?![0-9])
+    (?!\w)
         negative lookahead to ensure that cases like x222 aren't matched
-    (?<!0)x[0-9](?![0-9])
+    (?<!0)x\d(?!\w)
         same explanations as above, but this is for registers x0 - x9
         again, we don't want to match registers like x90, so the negative
         lookahead is used
 num_regex:
-    [-]?(?:0x[0-9a-f]+|[0-9]+)
+    [-]?(?:0x[0-9a-f]+|\d+)
     [-]?
         optionally matches a negative sign at the beginning
     (?:0x[0-9a-f]+|[0-9]+)
@@ -171,7 +171,7 @@ num_regex:
 label_regex    
     [.]*
         a label can start with zero or more periods
-    [0-9a-z_]+
+    \w+
         followed by one or more alpanumeric symbols or underscore
 '''
 
@@ -379,6 +379,8 @@ will be properly converted
 -Error message is very general, so any syntax errors or use 
 of unsupported instructions will throw the same error.
 -If an illegal register is used, it will trigger a syntax error
+-If a register is used in a branch instr that doesn't take them,
+an error is raised
 '''
 def execute(line:str):
     global pc,n_flag,z_flag,label_hit_counts
@@ -395,7 +397,9 @@ def execute(line:str):
     var = var_regex
     lab = label_regex
     
-    
+    #all labels in program (better feedback for typos/malformed branches
+    #[:-1] is so that the colon in the label is not included
+    labels = [l[:-1] for l in asm if(re.match('{}:'.format(lab),l))]
     '''
     ldp instructions
     ''' 
@@ -799,9 +803,11 @@ def execute(line:str):
         return 
     '''
     branch instructions
+    NB. A value error is raised if a register is included where it shouldn't be
     '''
     #cbnz rn,<label>
     if(re.match('cbnz {},{}'.format(rg,lab),line)):
+        if(len(re.findall(rg,line)) != 1): raise ValueError("cbnz takes one register")
         rn = re.findall(rg,line)[0]
         #last match is the label
         label = re.findall(lab,line)[-1]
@@ -809,6 +815,7 @@ def execute(line:str):
         return
     #cbz rn, <label>
     if(re.match('cbz {},{}'.format(rg,lab),line)):
+        if(len(re.findall(rg,line)) != 1): raise ValueError("cbz takes one register")
         rn = re.findall(rg,line)[0]
         #last match is the label
         label = re.findall(lab,line)[-1]
@@ -816,60 +823,70 @@ def execute(line:str):
         return
     #b <label>
     if(re.match('b {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("b takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         pc = asm.index(label+':')
         return
     #b.lt <label>
     if(re.match('b\.?lt {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("blt takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(n_flag): pc=asm.index(label+':')
         return
     #b.le <label>
     if(re.match('b\.?le {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("ble takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(n_flag or z_flag): pc=asm.index(label+':')
         return
     #b.gt <label>
     if(re.match('b\.?gt {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("bgt takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not z_flag and not n_flag): pc=asm.index(label+':')
         return
     #b.ge <label>
     if(re.match('b\.?ge {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("bge takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not n_flag): pc=asm.index(label+':')
         return
     #b.eq <label>
     if(re.match('b\.?eq {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("beq takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(z_flag): pc=asm.index(label+':')
         return
     #b.ne <label>
     if(re.match('b\.?ne {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("bne takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not z_flag): pc=asm.index(label+':')
         return
     #b.mi <label>
     if(re.match('b\.?mi {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("bmi takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(n_flag): pc=asm.index(label+':')
         return
     #b.pl <label>
     if(re.match('b\.?pl {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("bpl takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not n_flag or z_flag): pc=asm.index(label+':')
         return
     #bl <label>
     if(re.match('bl {}'.format(lab),line)):
+        if(len(re.findall(rg,line)) != 0): raise ValueError("bl takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         reg['lr'] = pc
@@ -964,7 +981,6 @@ returns the list
 (assuming nothing has been put there)
 '''
 def getdata(variable:str):
-    
     if( variable+'_TYPE_' in sym_table):
         index = sym_table[variable]
         size = sym_table[variable+"_SIZE_"]
@@ -1023,7 +1039,6 @@ def check_static_rules():
     #check that all branch instructions call existing labels
     for instr in asm:
         if(re.match('c?b(.*?)',instr)):
-            #last match is the label
             label = re.findall(lab,instr)[-1]  
             if(label+':' not in asm):
                 raise ValueError(instr + " is calling a nonexistent label")      
