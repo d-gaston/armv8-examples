@@ -120,8 +120,7 @@ try:
     assert False, "check_static_rules should raise error with collaz.s when mov instr forbidden"
 except ValueError:
     #expected
-    armsim.forbidden_instructions.clear()
-
+    armsim.reset()
 #duplicate labels
 with open('collatz.s','r') as f:
     armsim.parse(f.readlines())
