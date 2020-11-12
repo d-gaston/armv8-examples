@@ -34,6 +34,12 @@ armsim.run()
 assert armsim.reg['x0'] == 7, "ldr_str_test returned incorrect value of {}".format(armsim.reg['x0'])
 armsim.reset()
 
+with open('tests/brk_test.s','r') as f:
+	armsim.parse(f.readlines())
+armsim.run()
+assert armsim.reg['x0'] == 7, "brk_test returned incorrect value of {}".format(armsim.reg['x0'])
+armsim.reset()
+
 
 
 

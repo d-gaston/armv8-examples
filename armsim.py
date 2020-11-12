@@ -115,8 +115,14 @@ Global state variables
 #list to hold the instructions
 asm = []
 STACK_SIZE = 4096
-#points to the end of the static data section
+#heap will be 4 pages
+HEAP_SIZE  =  0x4000
+#points to the end of the heap
 heap_pointer = 0
+#points to the end of the static data section
+data_pointer = 0
+#points to current break
+brk = 0
 #dict of register names to values. Will always be numeric values       
 reg = {'x0':0,'x1':0,'x2':0,'x3':0,'x4':0,'x5':0,'x6':0,'x7':0,'x8':0,'x9':0,'x10':0,
 'x11':0,'x12':0,'x13':0,'x14':0,'x15':0,'x16':0,'x17':0,'x18':0,'x19':0,'x20':0,
@@ -144,6 +150,8 @@ label_hit_counts = {}
 
 '''
 dict to hold "external" labels that can be targets for BL.
+The key is a label (including colon) and the value is a python
+function
 '''
 linked_labels = {}
 
@@ -206,8 +214,15 @@ String data gets "converted" by doing list(bytes(str,'ascii')) and numbers
 get converted into a list from their byte representation using list(int.tobytes()).
 It is accessed with an index and a size using the format [addr:addr+size].
 The stack pointer also points to the end of this list and grows down.
-It's first filled with static data, then extended to fit the stack.
-The sp (stack pointer) register will point to the end of this list
+It's first filled with static data, then the heap is appended, followed
+by the stack
+The sp (stack pointer) register will point to the end of the list 
+and the heap pointer will point to the end of the static section to start
+Thus, we get the following diagram
+
+| static | heap | stack |
+         ^              ^
+         hp            sp
 '''
 mem = []
 
@@ -246,7 +261,7 @@ keywords. Those keywords are .data or .bss for declaring constants
 and buffers and main: or _start: for code. 
 '''
 def parse(lines)->None:
-    global STACK_SIZE, heap_pointer
+    global STACK_SIZE, HEAP_SIZE, heap_pointer,data_pointer,brk
     #booleans for parsing .s file
     comment = False
     code = False
@@ -371,11 +386,15 @@ def parse(lines)->None:
                     sym_table[line[0]] = sym_table[line[1]]
                 else:
                     sym_table[line[0]] = int(line[1])
+
     #set the heap pointer to the end of static memory
-    heap_pointer = index
-    assert heap_pointer == len(mem), \
-    "mem list likely incorrect- heap_pointer: {} len(mem):{}".format(heap_pointer,len(mem))
+    heap_pointer = index 
+    data_pointer = index 
+    brk = data_pointer
+    assert data_pointer == len(mem), \
+    "mem list likely incorrect- data_pointer: {} len(mem):{}".format(heap_pointer,len(mem))
     #extend mem to make room for the stack, then set the stack pointer
+    mem.extend(list([0]*HEAP_SIZE))
     mem.extend(list([0]*STACK_SIZE))
     reg['sp'] = len(mem) - 1
     
@@ -400,9 +419,9 @@ of unsupported instructions will throw the same error.
 an error is raised
 '''
 def execute(line:str):
-    global pc,n_flag,z_flag,label_hit_counts,heap_pointer
+    global pc,n_flag,z_flag,label_hit_counts,heap_pointer,data_pointer,brk,STACK_SIZE
     global register_regex,num_regex,var_regex,label_regex
-    
+        
     #remove spaces around commas
     line = re.sub('[ ]*,[ ]*',',',line)
     #octothorpe is optional, remove it
@@ -639,19 +658,7 @@ def execute(line:str):
         if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
-        return    
-    #str rt, [rn, rm]
-    #dollar sign so it doesn't match pre index
-    if(re.match('str {},\[{},()\]$'.format(rg,rg,rg),line)):
-        rt = re.findall(rg,line)[0]
-        rn = re.findall(rg,line)[1]
-        rn = re.findall(rg,line)[2]
-        addr = reg[rn] + reg[rm]
-        #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
-            raise ValueError("out of bounds memory access: {}".format(line))
-        mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
-        return    
+        return       
     #str rt, [rn, imm]
     #dollar sign so it doesn't match pre index
     if(re.match('str {},\[{},{}\]$'.format(rg,rg,num),line)):
@@ -1004,7 +1011,7 @@ def execute(line:str):
         if(syscall==93):
             pc = len(asm)
         #write
-        if(syscall==64):
+        elif(syscall==64):
             assert reg['x0'] == 1, "Can only write to stdout! (x0 must contain #1)"
             length = reg['x2']
             addr = reg['x1']
@@ -1013,7 +1020,7 @@ def execute(line:str):
             #it in their string
             print(output, end='') 
         #read
-        if(syscall==63):
+        elif(syscall==63):
             length = reg['x2']
             addr = reg['x1']
             enter = input()
@@ -1024,13 +1031,35 @@ def execute(line:str):
             mem[addr:addr+len(enter)] = list(bytes(enter,'ascii'))
             #return value is # of bytes read
             reg['x0'] = len(enter)
+        #brk
+        elif(syscall==214):
+            new_brk = reg['x0']
+            #invalid new_brk, return current brk
+            if(new_brk < data_pointer):
+                reg['x0'] = brk
+            #original brk, reset heap_pointer (works with empty data section)
+            elif(new_brk == data_pointer):
+                brk = new_brk
+                reg['x0'] = brk
+                heap_pointer = data_pointer
+            #adjust brk, possible heap_pointer    
+            else:
+                #round up to the nearest page boundary of 4K bytes
+                page = (new_brk + 0x1000) - new_brk % 0x1000
+                if(page > 0x4000): raise ValueError("brk of {} too large".format(brk))
+                #and set heap_pointer
+                heap_pointer = page + data_pointer
+                #x0 has valid address, set brk to it
+                brk = reg['x0']
         #getrandom
-        if(syscall==278):
+        elif(syscall==278):
             addr = reg['x0']
             quantity = reg['x1']
             #the number of random bytes requested is written to mem
             mem[addr:addr+quantity] = list(os.urandom(quantity))
-            reg['x0'] = quantity  
+            reg['x0'] = quantity
+        else:
+            raise ValueError("Unsupported system call: {} ".format(syscall))
         return
     raise ValueError("Unsupported instruction or syntax error: "+line)
     
@@ -1109,7 +1138,7 @@ Called in run() and debug(), so should be no
 need to call this separately 
 '''
 def check_static_rules():
-    global forbid_recursion, require_recursion, label_regex
+    global forbid_recursion, require_recursion, check_dead_code, label_regex
     #label regex
     lab = label_regex
     
@@ -1151,14 +1180,15 @@ def check_static_rules():
         if(looped):
              raise ValueError("you cannot loop")
     
-    #Check for dead code after ret or b instruction
-    #The only instr that should come after a ret or b is a label
-    for i in range(0,len(asm)-1):
-        #don't care about last instruction
-        if(i != len(asm) - 1):
-            if(asm[i] == 'ret' or re.match('b {}'.format(lab),asm[i])):
-                assert re.match(lab+':',asm[i+1]), \
-                "Dead code detected after instruction {} " + asm[i]
+    if(check_dead_code):
+        #Check for dead code after ret or b instruction
+        #The only instr that should come after a ret or b is a label
+        for i in range(0,len(asm)-1):
+            #don't care about last instruction
+            if(i != len(asm) - 1):
+                if(asm[i] == 'ret' or re.match('b {}'.format(lab),asm[i])):
+                    assert re.match(lab+':',asm[i+1]), \
+                    "Dead code detected after instruction {} " + asm[i]
 
 '''
 This procedure runs the code normally to the end. Exceptions are raised
@@ -1167,7 +1197,7 @@ contrary to the forbid/require recursion flags. The program is considered to
 have ended when pc equals the length of the asm list
 '''
 def run():
-    global pc, STACK_SIZE, label_regex,label_hit_counts
+    global pc, STACK_SIZE, label_regex,label_hit_counts,heap_pointer
     check_static_rules()
     recursed_labels = set()
     labels = [l for l in asm if(re.match('{}:'.format(label_regex),l))]+list(linked_labels.keys())
@@ -1186,7 +1216,7 @@ def run():
                 recursed_labels.add(label)
         
         #check for stack overflow    
-        if(reg['sp'] < len(mem) - STACK_SIZE):
+        if(reg['sp'] <= heap_pointer):
             raise ValueError("stack overflow")
         if(reg['sp'] > len(mem)):
             raise ValueError("stack underflow (make sure to allocate space)")
