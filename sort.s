@@ -9,6 +9,15 @@ main:
     ldr x0, =array
     ldr x1, =array_len
     bl sort
+    ldr x0, =sorted
+    ldr x1, =array_len
+    bl sort
+    ldr x0, =reverse
+    ldr x1, =array_len
+    bl sort
+    ldr x0, =nearly_sorted
+    ldr x1, =array_len
+    bl sort
     
     //put a breakpoint here and examine array; it should be sorted
     mov x8, 93
@@ -93,3 +102,6 @@ sort:
 .data
 array: .8byte 89,80,83,88,86,82,87,81,84,85
 array_len = . - array
+sorted: .8byte 89,80,83,88,86,82,87,81,84,85
+reverse: .8byte 9,8,7,6,5,4,3,2,1,0
+nearly_sorted: .8byte 9,1,2,3,4,5,6,7,8,0

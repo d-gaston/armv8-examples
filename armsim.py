@@ -470,7 +470,7 @@ def execute(line:str):
         return
     
     #ldp rt, rt2, [rn, imm]! //pre index
-    if(re.match('ldp {},{},\[{},{}\]!'.format(rg,rg,rg,num),line)):
+    if(re.match('ldp {},{},\[{},{}\]!$'.format(rg,rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rt2 = re.findall(rg,line)[1]
         rn = re.findall(rg,line)[2]
@@ -485,7 +485,7 @@ def execute(line:str):
         reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         return
     #ldp rt, rt2, [rn], imm //post index
-    if(re.match('ldp {},{},\[{}\],{}'.format(rg,rg,rg,num),line)):
+    if(re.match('ldp {},{},\[{}\],{}$'.format(rg,rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rt2 = re.findall(rg,line)[1]
         rn = re.findall(rg,line)[2]
@@ -537,7 +537,7 @@ def execute(line:str):
         mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
         return 
     #stp rt, rt2, [rn, imm]! //pre index
-    if(re.match('stp {},{},\[{},{}\]!'.format(rg,rg,rg,num),line)):
+    if(re.match('stp {},{},\[{},{}\]!$'.format(rg,rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rt2 = re.findall(rg,line)[1]
         rn = re.findall(rg,line)[2]        
@@ -552,7 +552,7 @@ def execute(line:str):
         mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
         return
     #stp rt, rt2, [rn], imm //post index
-    if(re.match('stp {},{},\[{}\],{}'.format(rg,rg,rg,num),line)):
+    if(re.match('stp {},{},\[{}\],{}$'.format(rg,rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rt2 = re.findall(rg,line)[1]
         rn = re.findall(rg,line)[2]        
@@ -573,7 +573,7 @@ def execute(line:str):
     ldr instructions
     '''
     #ldr rt, =<var>
-    if(re.match('ldr {},={}'.format(rg,var),line)):
+    if(re.match('ldr {},={}$'.format(rg,var),line)):
         rt = re.findall(rg,line)[0]
         v = re.findall('='+var,line)[0][1:]
         reg[rt] = sym_table[v]
@@ -630,7 +630,7 @@ def execute(line:str):
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         return
     #ldr rt, [rn], imm //post index
-    if(re.match('ldr {},\[{}\],{}'.format(rg,rg,num),line)):
+    if(re.match('ldr {},\[{}\],{}$'.format(rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
@@ -684,7 +684,7 @@ def execute(line:str):
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return
     #str rt, [rn, imm]! //pre index
-    if(re.match('str {},\[{},{}\]!'.format(rg,rg,num),line)):
+    if(re.match('str {},\[{},{}\]!$'.format(rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
@@ -696,7 +696,7 @@ def execute(line:str):
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return 
     #str rt, [rn], imm //post index
-    if(re.match('str {},\[{}\],{}'.format(rg,rg,num),line)):
+    if(re.match('str {},\[{}\],{}$'.format(rg,rg,num),line)):
         rt = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
@@ -714,13 +714,13 @@ def execute(line:str):
     mov instructions
     '''
     #mov rd, imm
-    if(re.match('mov {},{}'.format(rg,num),line)):
+    if(re.match('mov {},{}$'.format(rg,num),line)):
         rd = re.findall(rg,line)[0]
         imm = int(re.findall(num,line)[-1],0)
         reg[rd] = imm
         return
     #mov rd, rn
-    if(re.match('mov {},{}'.format(rg,rg),line)):
+    if(re.match('mov {},{}$'.format(rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         reg[rd] = reg[rn]
@@ -729,21 +729,21 @@ def execute(line:str):
     arithmetic instructions
     '''
     #asr rd, rn, imm
-    if(re.match('asr {},{},{}'.format(rg,rg,num),line)):
+    if(re.match('asr {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] >> imm
         return
     #lsl rd, rn, imm
-    if(re.match('lsl {},{},{}'.format(rg,rg,num),line)):
+    if(re.match('lsl {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
         reg[rd] = reg[rn] << imm
         return
     #add{s} rd, rn, imm
-    if(re.match('adds? {},{},{}'.format(rg,rg,num),line)):
+    if(re.match('adds? {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
@@ -753,7 +753,7 @@ def execute(line:str):
             z_flag = True if(reg[rd] == 0) else False        
         return
     #add{s} rd, rn, rm
-    if(re.match('adds? {},{},{}'.format(rg,rg,rg),line)):
+    if(re.match('adds? {},{},{}$'.format(rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -763,7 +763,7 @@ def execute(line:str):
             z_flag = True if(reg[rd] == 0) else False        
         return
     #sub{s} rd, rn, imm
-    if(re.match('subs? {},{},{}'.format(rg,rg,num),line)):
+    if(re.match('subs? {},{},{}$'.format(rg,rg,num),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         imm = int(re.findall(num,line)[-1],0)
@@ -773,7 +773,7 @@ def execute(line:str):
             z_flag = True if(reg[rd] == 0) else False
         return
     #sub{s} rd, rn, rm
-    if(re.match('subs? {},{},{}'.format(rg,rg,rg),line)):
+    if(re.match('subs? {},{},{}$'.format(rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -783,7 +783,7 @@ def execute(line:str):
             z_flag = True if(reg[rd] == 0) else False
         return
     #mul rd, rn, rm
-    if(re.match('mul {},{},{}'.format(rg,rg,rg),line)):
+    if(re.match('mul {},{},{}$'.format(rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -792,7 +792,7 @@ def execute(line:str):
     #For now treat un/signed division the same, since everything
     #is signed in python, but separate in case this changes
     #udiv rd, rn, rm
-    if(re.match('udiv {},{},{}'.format(rg,rg,rg),line)):
+    if(re.match('udiv {},{},{}$'.format(rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -800,7 +800,7 @@ def execute(line:str):
         reg[rd] = reg[rn] // reg[rm]
         return
     #sdiv rd, rn, rm
-    if(re.match('sdiv {},{},{}'.format(rg,rg,rg),line)):
+    if(re.match('sdiv {},{},{}$'.format(rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -808,7 +808,7 @@ def execute(line:str):
         reg[rd] = reg[rn] // reg[rm]
         return
     #msub rd, rn, rm, ra
-    if(re.match('msub {},{},{},{}'.format(rg,rg,rg,rg),line)):
+    if(re.match('msub {},{},{},{}$'.format(rg,rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -816,7 +816,7 @@ def execute(line:str):
         reg[rd] = reg[ra] - reg[rn] * reg[rm]
         return
     #madd rd, rn, rm, ra
-    if(re.match('madd {},{},{},{}'.format(rg,rg,rg,rg),line)):
+    if(re.match('madd {},{},{},{}$'.format(rg,rg,rg,rg),line)):
         rd = re.findall(rg,line)[0]
         rn = re.findall(rg,line)[1]
         rm = re.findall(rg,line)[2]
@@ -827,7 +827,7 @@ def execute(line:str):
     compare instructions
     '''
     #cmp rn, rm
-    if(re.match('cmp {},{}'.format(rg,rg),line)):
+    if(re.match('cmp {},{}$'.format(rg,rg),line)):
         rn = re.findall(rg,line)[0]
         rm = re.findall(rg,line)[1]
         assert rm != 'sp', "2nd register in cmp can't be sp"
@@ -835,7 +835,7 @@ def execute(line:str):
         n_flag = True if reg[rn] < reg[rm] else False
         return
     #cmp rn, imm
-    if(re.match('cmp {},{}'.format(rg,num),line)):
+    if(re.match('cmp {},{}$'.format(rg,num),line)):
         rn = re.findall(rg,line)[0]
         imm = int(re.findall(num,line)[-1],0)
         z_flag = True if reg[rn] == imm else False
@@ -899,7 +899,7 @@ def execute(line:str):
     NB. A value error is raised if a register is included where it shouldn't be
     '''
     #cbnz rn,<label>
-    if(re.match('cbnz {},{}'.format(rg,lab),line)):
+    if(re.match('cbnz {},{}$'.format(rg,lab),line)):
         if(len(re.findall(rg,line)) != 1): raise ValueError("cbnz takes one register")
         rn = re.findall(rg,line)[0]
         #last match is the label
@@ -907,7 +907,7 @@ def execute(line:str):
         if(reg[rn] != 0):pc = asm.index(label+':') 
         return
     #cbz rn, <label>
-    if(re.match('cbz {},{}'.format(rg,lab),line)):
+    if(re.match('cbz {},{}$'.format(rg,lab),line)):
         if(len(re.findall(rg,line)) != 1): raise ValueError("cbz takes one register")
         rn = re.findall(rg,line)[0]
         #last match is the label
@@ -915,63 +915,63 @@ def execute(line:str):
         if(reg[rn] == 0):pc = asm.index(label+':') 
         return
     #b <label>
-    if(re.match('b {}'.format(lab),line)):
+    if(re.match('b {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("b takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         pc = asm.index(label+':')
         return
     #b.lt <label>
-    if(re.match('b\.?lt {}'.format(lab),line)):
+    if(re.match('b\.?lt {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("blt takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(n_flag): pc=asm.index(label+':')
         return
     #b.le <label>
-    if(re.match('b\.?le {}'.format(lab),line)):
+    if(re.match('b\.?le {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("ble takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(n_flag or z_flag): pc=asm.index(label+':')
         return
     #b.gt <label>
-    if(re.match('b\.?gt {}'.format(lab),line)):
+    if(re.match('b\.?gt {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("bgt takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not z_flag and not n_flag): pc=asm.index(label+':')
         return
     #b.ge <label>
-    if(re.match('b\.?ge {}'.format(lab),line)):
+    if(re.match('b\.?ge {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("bge takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not n_flag): pc=asm.index(label+':')
         return
     #b.eq <label>
-    if(re.match('b\.?eq {}'.format(lab),line)):
+    if(re.match('b\.?eq {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("beq takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(z_flag): pc=asm.index(label+':')
         return
     #b.ne <label>
-    if(re.match('b\.?ne {}'.format(lab),line)):
+    if(re.match('b\.?ne {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("bne takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(not z_flag): pc=asm.index(label+':')
         return
     #b.mi <label>
-    if(re.match('b\.?mi {}'.format(lab),line)):
+    if(re.match('b\.?mi {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("bmi takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
         if(n_flag): pc=asm.index(label+':')
         return
     #b.pl <label>
-    if(re.match('b\.?pl {}'.format(lab),line)):
+    if(re.match('b\.?pl {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("bpl takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1]
@@ -980,7 +980,7 @@ def execute(line:str):
     #bl <label>
     #bl can branch to a local assembly procedure or to an externally defined
     #python function
-    if(re.match('bl {}'.format(lab),line)):
+    if(re.match('bl {}$'.format(lab),line)):
         if(len(re.findall(rg,line)) != 0): raise ValueError("bl takes no registers")
         #last match is the label
         label = re.findall(lab,line)[-1] + ':'
@@ -994,7 +994,7 @@ def execute(line:str):
             pc=asm.index(label)
         return
     #ret 
-    if(re.match('ret',line)):
+    if(re.match('ret$',line)):
         addr = reg['lr']
         if(addr not in range(0,len(asm))):
             raise ValueError("ret: address in LR ({}) out of range".format(addr))
@@ -1005,7 +1005,7 @@ def execute(line:str):
     Currently supported: Read and write to stdin/stdout, getrandom
     '''
     #svc 0
-    if(re.match('svc 0',line)):
+    if(re.match('svc 0$',line)):
         syscall = int(reg['x8'])
         #simulate exit by causing main loop to exit
         if(syscall==93):
