@@ -16,6 +16,10 @@ p:
     The program code is scanned and the used registers are extracted
     Each register in this list is printed on a single line with its value
     followed by another line with the Z and N flags
+heap:
+    Prints out all elements of the heap contained from the beginning of the heap
+    to the program break (set with the brk system call). Info stored outside
+    of this is not displayed, even if it is technically on the heap
 stk <num>:
     Prints out the <num> top elements of the stack. If no number is specified, the default number of 
     elements to print out is 10
@@ -73,6 +77,7 @@ debugger exits
 
 help_str = "simple debugger interface for armsim. commands are\n"\
 +"  p            print all registers used in program and flags\n"\
++"  heap         print the heap from the beginning to the break\n"\
 +"  stk <num>    print the n top elements of the stack\n"\
 +"  stk          print the 10 top elements of the stack\n"\
 +"  d <vars>     display the memory held at each <var> as bytes\n"\
@@ -151,6 +156,7 @@ def main():
         elif(cmd.startswith('stk')):
             numList = re.findall('[0-9]+',cmd)
             print("SP: {}".format(hex((reg['sp']))))
+            #print provided number of items
             if(numList):
                 #should only be 1 element in numList
                 num = int(numList[0])
@@ -161,11 +167,18 @@ def main():
                     #convert list of 8 bytes to value
                     value = int.from_bytes(bytes(mem[addr:addr+8]),'little')
                     print("<sp+{}>  {}".format(i,hex(value)))
+            #print top 10
             else:
                 for i in range(0,80,8):
                     addr = reg['sp']+i
                     value = int.from_bytes(bytes(mem[addr:addr+8]),'little')
                     print("<sp+{}>  {}".format(i,hex(value)))
+        elif(cmd == 'heap'):
+            offset = armsim.brk
+            for addr in range(armsim.data_pointer,armsim.brk,8):
+                value = int.from_bytes(bytes(mem[addr:addr+8]),'little')
+                print("<brk-{}>  {}".format(offset,hex(value)))
+                offset -= 8
         elif(cmd.startswith('d ')):
             variables = set(re.findall(var,cmd.replace('d ', '')))
             if(variables):

@@ -5,6 +5,10 @@ A simple debugger interface for armsim. To run: `python armdb.py <program>.s` Th
     p:
         The program code is scanned and the used registers are extracted. Each register in this list is printed 
         on a single line with its value followed by another line with the Z and N flags
+    heap:
+        Prints out all elements of the heap contained from the beginning of the heap to the program break (set 
+        with the brk system call). Info stored outsideof this is not displayed, even if it is technically on the 
+        heap
     stk <num>:
         Prints out the <num> top elements of the stack. If no number is specified, the default number of 
         elements to print out is 10

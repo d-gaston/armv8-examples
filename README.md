@@ -7,6 +7,7 @@
 	+ **prompt.s** Asks the user for a name then prints out the name with a greeting. Introduces reading input from the command line
 	+ **guess.s** Generates a random number from 0 - 9 and asks the user to guess until the right answer is inputted
 	+ **collatz.s** Asks the user to input a positive number and returns the number of steps for the number to converge on 1 using the Collatz Conjecture
+	+ **sort.s** Demonstrates how a simple sort algorithm (insertion sort) can be implemented in assembly. Each line of the algorithm is mapped to the corresponding assembly code
 
 # To Compile
 `$ as -g name.s -o name.o && ld name.o -o name`
