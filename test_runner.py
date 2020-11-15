@@ -51,6 +51,9 @@ with open('sort.s','r') as f:
 original = armsim.getdata('array')
 armsim.run()
 assert armsim.getdata('array') == sorted(original), "incorrect result produced after running sort.s"
+assert armsim.getdata('sorted') == sorted(original), "incorrect result produced after running sort.s"
+assert armsim.getdata('reverse') == sorted(original), "incorrect result produced after running sort.s"
+assert armsim.getdata('nearly_sorted') == sorted(original), "incorrect result produced after running sort.s"
 armsim.reset()  
 
 

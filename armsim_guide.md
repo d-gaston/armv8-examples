@@ -6,6 +6,7 @@ Run a program with `python armsim.py <program>.s`
 ### System Calls:
     read       0x3f  (63) --stdin only
     write      0x40  (64) --stdout only
+    brk        0xd6  (214) --stdout only
     getrandom  0x116 (278)
     exit       0x5d  (93)
 ### Labels:

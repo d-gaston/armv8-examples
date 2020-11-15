@@ -117,10 +117,8 @@ asm = []
 STACK_SIZE = 4096
 #heap will be 4 pages
 HEAP_SIZE  =  0x4000
-#points to the end of the heap
-heap_pointer = 0
-#points to the end of the static data section
-data_pointer = 0
+#points to the original break, which comes after the static data
+original_break = 0
 #points to current break
 brk = 0
 #dict of register names to values. Will always be numeric values       
@@ -208,21 +206,22 @@ sym_table as numbers, so they don't have a type
 Types are stored primarily for the get_data procedure
 '''
 sym_table = {}
+
 '''
 Data is stored as a list. Each element is an int that represents a byte. 
 String data gets "converted" by doing list(bytes(str,'ascii')) and numbers 
 get converted into a list from their byte representation using list(int.tobytes()).
 It is accessed with an index and a size using the format [addr:addr+size].
 The stack pointer also points to the end of this list and grows down.
-It's first filled with static data, then the heap is appended, followed
-by the stack
-The sp (stack pointer) register will point to the end of the list 
-and the heap pointer will point to the end of the static section to start
+It's first filled with the stack, then static data, then the heap. This
+ensures that increasing the heap does not shift the stack or static data.
+The sp (stack pointer) register will point to the end of its section
+and the heap pointer will point beginning of it's section to start
 Thus, we get the following diagram
 
-| static | heap | stack |
-         ^              ^
-         hp            sp
+| stack | static | heap |
+        ^        ^     
+    <--sp        hp -->
 '''
 mem = []
 
@@ -261,19 +260,24 @@ keywords. Those keywords are .data or .bss for declaring constants
 and buffers and main: or _start: for code. 
 '''
 def parse(lines)->None:
-    global STACK_SIZE, HEAP_SIZE, heap_pointer,data_pointer,brk
+    global STACK_SIZE, HEAP_SIZE, heap_pointer,original_break,brk
     #booleans for parsing .s file
     comment = False
     code = False
     data = False
     bss = False 
+    
+    #allocate the stack and set the stack pointer
+    mem.extend(list([0]*STACK_SIZE))
+    reg['sp'] = len(mem) - 1
     '''
     This is a counter that is used to assign an "address" in mem
     to a symbol. Basically the value in sym_table when a key is one of 
     the user defined variables. It's incremented for every variable encountered
     by the size of the data stored in mem
     '''
-    index = 0
+    index = len(mem)
+
     
     for line in lines:
         line = line.strip()
@@ -387,16 +391,15 @@ def parse(lines)->None:
                 else:
                     sym_table[line[0]] = int(line[1])
 
-    #set the heap pointer to the end of static memory
-    heap_pointer = index 
-    data_pointer = index 
-    brk = data_pointer
-    assert data_pointer == len(mem), \
-    "mem list likely incorrect- data_pointer: {} len(mem):{}".format(heap_pointer,len(mem))
+    #set the break variables to the end of static memory
+    original_break = index
+    brk = original_break
+    assert brk == len(mem), \
+    "mem list likely incorrect- brk: {} len(mem):{}".format(brk,len(mem))
     #extend mem to make room for the stack, then set the stack pointer
-    mem.extend(list([0]*HEAP_SIZE))
-    mem.extend(list([0]*STACK_SIZE))
-    reg['sp'] = len(mem) - 1
+    #mem.extend(list([0]*HEAP_SIZE))
+
+    
     
 '''
 This procedure dispatches and executes the provided line
@@ -419,7 +422,8 @@ of unsupported instructions will throw the same error.
 an error is raised
 '''
 def execute(line:str):
-    global pc,n_flag,z_flag,label_hit_counts,heap_pointer,data_pointer,brk,STACK_SIZE
+    global pc,n_flag,z_flag,label_hit_counts,mem
+    global original_break,brk,STACK_SIZE, HEAP_SIZE
     global register_regex,num_regex,var_regex,label_regex
         
     #remove spaces around commas
@@ -447,7 +451,7 @@ def execute(line:str):
         rn = re.findall(rg,line)[2]
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         addr += 8
@@ -462,7 +466,7 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn] + imm
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         addr += 8
@@ -478,7 +482,7 @@ def execute(line:str):
         reg[rn] += imm
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         addr += 8
@@ -492,14 +496,14 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         addr += 8
         reg[rt2] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         reg[rn] += imm
         #check for out of bounds pointer
-        if(reg[rn] > heap_pointer and reg[rn] < reg['sp']):
+        if(reg[rn] > len(mem) and reg[rn] < reg['sp']):
             raise ValueError("register {} points to out of bounds memory".format(reg[rn]))
         return
 
@@ -514,7 +518,7 @@ def execute(line:str):
         rn = re.findall(rg,line)[2]        
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         addr += 8
@@ -530,7 +534,7 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)        
         addr = reg[rn] + imm
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         addr += 8
@@ -545,7 +549,7 @@ def execute(line:str):
         reg[rn] += imm
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         addr += 8
@@ -559,14 +563,14 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 16 and addr < reg['sp'] or addr > len(mem) - 16):
+        if(addr < reg['sp'] or addr > len(mem) - 16):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         addr += 8
         mem[addr:addr+8] = list(int.to_bytes((reg[rt2]),8,'little'))
         reg[rn] += imm
         #check for out of bounds pointer
-        if(reg[rn] > heap_pointer and reg[rn] < reg['sp']):
+        if(reg[rn] > len(mem) and reg[rn] < reg['sp']):
             raise ValueError("register {} points to out of bounds memory".format(reg[rn]))
         return
     '''
@@ -585,7 +589,7 @@ def execute(line:str):
         rn = re.findall(rg,line)[1]
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         #load 8 bytes starting at addr and convert to int
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
@@ -598,7 +602,7 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn] + imm
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         #load 8 bytes starting at addr and convert to int
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
@@ -611,7 +615,7 @@ def execute(line:str):
         rm = re.findall(rg,line)[2]
         addr = reg[rn] + reg[rm]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         #load 8 bytes starting at addr and convert to int
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
@@ -624,7 +628,7 @@ def execute(line:str):
         reg[rn] += imm
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         #load 8 bytes starting at addr and convert to int
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
@@ -636,13 +640,13 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         #load 8 bytes starting at addr and convert to int
         reg[rt] = int.from_bytes(bytes(mem[addr:addr+8]),'little')
         reg[rn] += imm
         #check for out of bounds pointer
-        if(reg[rn] > heap_pointer and reg[rn] < reg['sp']):
+        if(reg[rn] > len(mem) and reg[rn] < reg['sp']):
             raise ValueError("register {} points to out of bounds memory".format(reg[rn]))
         return
     '''
@@ -655,7 +659,7 @@ def execute(line:str):
         rn = re.findall(rg,line)[1]
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return       
@@ -667,7 +671,7 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn] + imm
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return    
@@ -679,7 +683,7 @@ def execute(line:str):
         rm = re.findall(rg,line)[2]
         addr = reg[rn] + reg[rm]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return
@@ -691,7 +695,7 @@ def execute(line:str):
         reg[rn] += imm
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         return 
@@ -702,12 +706,12 @@ def execute(line:str):
         imm = int(re.findall(num,line)[-1],0)
         addr = reg[rn]
         #check for out of bounds mem access
-        if(addr > heap_pointer - 8 and addr < reg['sp'] or addr > len(mem) - 8):
+        if(addr < reg['sp'] or addr > len(mem) - 8):
             raise ValueError("out of bounds memory access: {}".format(line))
         mem[addr:addr+8] = list(int.to_bytes((reg[rt]),8,'little'))
         reg[rn] += imm
         #check for out of bounds pointer
-        if(reg[rn] > heap_pointer and reg[rn] < reg['sp']):
+        if(reg[rn] > len(mem) and reg[rn] < reg['sp']):
             raise ValueError("register {} points to out of bounds memory".format(reg[rn]))
         return 
     '''
@@ -1035,20 +1039,26 @@ def execute(line:str):
         elif(syscall==214):
             new_brk = reg['x0']
             #invalid new_brk, return current brk
-            if(new_brk < data_pointer):
+            if(new_brk < original_break):
                 reg['x0'] = brk
             #original brk, reset heap_pointer (works with empty data section)
-            elif(new_brk == data_pointer):
+            elif(new_brk == original_break):
                 brk = new_brk
                 reg['x0'] = brk
-                heap_pointer = data_pointer
-            #adjust brk, possible heap_pointer    
+                mem = mem[:original_break]
+            #adjust brk  
             else:
                 #round up to the nearest page boundary of 4K bytes
-                page = (new_brk + 0x1000) - new_brk % 0x1000
-                if(page > 0x4000): raise ValueError("brk of {} too large".format(brk))
-                #and set heap_pointer
-                heap_pointer = page + data_pointer
+                break_size = new_brk - original_break
+                assert break_size >= 0, "System error: break_size should never be negative"
+                page = (break_size + 0x1000) - break_size % 0x1000
+                if(page > HEAP_SIZE): raise ValueError("break size of {} too large".format(break_size))
+                #shink the heap
+                if(len(mem) > page + original_break):
+                    mem = mem[:page + original_break]
+                #grow the heap
+                else:
+                    mem.extend([0] * page)
                 #x0 has valid address, set brk to it
                 brk = reg['x0']
         #getrandom
@@ -1197,7 +1207,7 @@ contrary to the forbid/require recursion flags. The program is considered to
 have ended when pc equals the length of the asm list
 '''
 def run():
-    global pc, STACK_SIZE, label_regex,label_hit_counts,heap_pointer
+    global pc, STACK_SIZE, label_regex,label_hit_counts
     check_static_rules()
     recursed_labels = set()
     labels = [l for l in asm if(re.match('{}:'.format(label_regex),l))]+list(linked_labels.keys())
@@ -1215,11 +1225,13 @@ def run():
                 label = re.findall(label_regex,line)[-1]
                 recursed_labels.add(label)
         
-        #check for stack overflow    
-        if(reg['sp'] <= heap_pointer):
+        #check for stack errors    
+        if(reg['sp'] < 0):
             raise ValueError("stack overflow")
-        if(reg['sp'] > len(mem)):
+        if(reg['sp'] > STACK_SIZE):
             raise ValueError("stack underflow (make sure to allocate space)")
+        if((reg['sp'] + 1)% 16 != 0):
+            raise ValueError("Alignment error: sp must be a multiple of 16")
         
         #if a label in encountered, inc pc and skip
         #also update label_hit_counts

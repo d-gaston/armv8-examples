@@ -100,8 +100,8 @@ sort:
     ret
 
 .data
-array: .8byte 89,80,83,88,86,82,87,81,84,85
+array: .8byte 9,0,3,8,6,2,7,1,4,5
 array_len = . - array
-sorted: .8byte 89,80,83,88,86,82,87,81,84,85
+sorted: .8byte 0,1,2,3,4,5,6,7,8,9
 reverse: .8byte 9,8,7,6,5,4,3,2,1,0
 nearly_sorted: .8byte 9,1,2,3,4,5,6,7,8,0
