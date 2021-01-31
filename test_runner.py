@@ -46,7 +46,7 @@ armsim.reset()
 '''
 Test the sort program
 '''
-with open('sort.s','r') as f:
+with open('examples/sort.s','r') as f:
     armsim.parse(f.readlines())
 original = armsim.getdata('array')
 armsim.run()
@@ -68,7 +68,7 @@ sys.stdout = StringIO()
 #supress stdout
 stdout = sys.stdout
 
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
 
 sys.stdin = StringIO('37')
@@ -84,7 +84,7 @@ armsim.reset()
 '''
 Tests for check_static_rules()
 '''
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
     
 #test forbid_loops flag
@@ -97,7 +97,7 @@ except ValueError:
     armsim.reset()
 
 #test forbid_recursion flag
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
 armsim.forbid_recursion = True
 try:
@@ -109,7 +109,7 @@ except ValueError:
     armsim.reset()
       
 #test require_recursion flag
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
 armsim.require_recursion = True
 try:
@@ -121,7 +121,7 @@ except ValueError:
     assert False, "should NOT raise error with collaz.s when recursion required"
  
 #forbidden instructions
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
 armsim.forbidden_instructions = {'mov'}
 try:
@@ -130,8 +130,9 @@ try:
 except ValueError:
     #expected
     armsim.reset()
+    
 #duplicate labels
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
 armsim.asm.append('duplicate_label:')
 armsim.asm.append('duplicate_label:')
@@ -144,7 +145,7 @@ except ValueError:
  
 
 #branch to label that doesn't exist
-with open('collatz.s','r') as f:
+with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
 armsim.asm.append('b not_a_label_in_program')
 try:

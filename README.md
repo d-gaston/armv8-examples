@@ -30,7 +30,7 @@ Here are some commands you'll want to know:
 Pressing enter at a blank prompt causes the previously executed command to run again. This can save a lot of typing.
 
 # armsim.py
-This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, prompt.s, guess.s, and collatz.s. See [the guide](armsim_guide.md) for information on its features and what instructions are currently supported. It's advisable to use the sample programs as a starting point for understanding the supported instructions and for writing your own programs
+This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, prompt.s, guess.s, and collatz.s. See [the guide](documentation/armsim_guide.md) for information on its features and what instructions are currently supported. It's advisable to use the sample programs as a starting point for understanding the supported instructions and for writing your own programs
 
 # armdb.py
-A simple debugger interface for armsim. See [the guide](armdb_guide.md) for usage instructions.
+A simple debugger interface for armsim. See [the guide](documentation/armdb_guide.md) for usage instructions.
