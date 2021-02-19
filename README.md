@@ -8,6 +8,7 @@
 	+ **guess.s** Generates a random number from 0 - 9 and asks the user to guess until the right answer is inputted
 	+ **collatz.s** Asks the user to input a positive number and returns the number of steps for the number to converge on 1 using the Collatz Conjecture
 	+ **sort.s** Demonstrates how a simple sort algorithm (insertion sort) can be implemented in assembly. Each line of the algorithm is mapped to the corresponding assembly code
+    + **brk.s** An example usage of the brk system call to dynamically allocate more memory to a program.
 
 # To Compile
 `$ as -g name.s -o name.o && ld name.o -o name`
@@ -30,7 +31,7 @@ Here are some commands you'll want to know:
 Pressing enter at a blank prompt causes the previously executed command to run again. This can save a lot of typing.
 
 # armsim.py
-This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, prompt.s, guess.s, and collatz.s. See [the guide](documentation/armsim_guide.md) for information on its features and what instructions are currently supported. It's advisable to use the sample programs as a starting point for understanding the supported instructions and for writing your own programs
+This is a python3 simulator for a subset of arm64 instructions. It aims to be compatible with gnu assembler files and supports a subset of directives. Further documentation can be found in the numerous comments. Currently armsim can run hello.s, loop.s, prompt.s, guess.s, collatz.s, sort.s, and brk.s. See [the guide](documentation/armsim_guide.md) for information on its features and what instructions are currently supported. It's advisable to use the sample programs as a starting point for understanding the supported instructions and for writing your own programs
 
 # armdb.py
 A simple debugger interface for armsim. See [the guide](documentation/armdb_guide.md) for usage instructions.
