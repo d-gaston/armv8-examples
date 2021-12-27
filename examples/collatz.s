@@ -23,7 +23,8 @@ main:
      * This is because I won't be using load/store byte instructions
      * since they require using the W registers 
      *******************************/
-    //allocate stack space for local variable
+    //allocate stack space for local variable. Even though we only need space for 
+    //one variable, the stack pointer (sp) must be aligned on a 16 byte boundary.
     sub sp, sp, 16
     
    /***********************
@@ -54,6 +55,13 @@ main:
     * (returned from syscall)
     ***********************/
     
+   /***********************
+    * The Branch with Link (bl) instruction jumps unconditionally to the
+    * address of the label but unlike the b instruction it saves the 
+    * address of the next instruction (the return address) in the link
+    * register (x30 aka lr). The RETurn instruction performs an unconditional
+    * jump to the address in the link register.
+    ***********************/
     bl str2int
     
     //if input is 0, quit
@@ -189,7 +197,10 @@ str2int:
  * Divide number by 10 and convert remainder
  * to string by adding 0x30. This is stored in
  * a register that is shifted left each time
- * to make room in the string.
+ * to make room in the string. Remember that we
+ * are using little endian byte order, which is
+ * why we are shifting the least significant bits
+ * to the left
  * Example 123
  *   1) num mod 10 = 3
  *   2) char <- 3 + 0x30

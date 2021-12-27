@@ -27,7 +27,7 @@ main:
     
 
  /*************************
-  *  Insertion sort
+  *  Insertion sort (from https://en.wikipedia.org/wiki/Insertion_sort)
   *  i ← 1
   *  while i < length(A)
   *      x ← A[i]
@@ -52,7 +52,9 @@ sort:
      * x4 : x
      * x5 : A[j]
      * x6 : j + 1
-     * NB. indexes must be multiples of 8
+     * NB. indexes must be multiples of 8, since that is the size of
+     * an integer. Languages like C take care of this detail for you,
+     * allowing you to seamlessly use 3 to refer to the 4th element.
      ******************/
     //i ← 1 
     mov x2, 8

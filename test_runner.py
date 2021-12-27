@@ -63,10 +63,9 @@ worth having an automated test to make sure it's working
 '''
 #use StringIO to drive collatz program
 stdin = sys.stdin
-
-sys.stdout = StringIO()
-#supress stdout
 stdout = sys.stdout
+#supress stdout
+sys.stdout = StringIO()
 
 with open('examples/collatz.s','r') as f:
     armsim.parse(f.readlines())
@@ -159,4 +158,4 @@ except ValueError:
 sys.stdin = stdin
 sys.stdout = stdout
   
-  
+print("All tests passed")  

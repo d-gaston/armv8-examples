@@ -39,8 +39,15 @@ main:
     * num and make it a number between
     * 0 and 9. To do this we'll divide the
     * random number by 9 and calculate the
-    * remainder. We'll put the remainder in x5
-    * for the duration of the program.
+    * remainder.
+    * Since we don't have the modulo operator (% in C)
+    * we'll have to calculate it in the following way:
+    * remainder = dividend - quotient x divisor
+    * We'll map them to the follwing registers:
+    * x5: remainder
+    * x2: divisor (9)
+    * x4: dividend (the random number)
+    * x3: quotient
     *********************/
     mov  x2, 9
     
@@ -58,6 +65,7 @@ main:
     * Unsigned DIVide takes the form
     * UDIV rd, rn, rm with the sematics
     * rd = rn ÷ rm
+    * This is an integer division, so 3/2 would be 1, not 1.5
     ********************/
     udiv x3, x4, x2
     
@@ -69,6 +77,7 @@ main:
     * rd = ra − rn × rm
     * This will allow us to calculate:
     * remainder = dividend - quotient x divisor
+    * (x5)        (x4)       (x3)       (x2)
     ********************/
     msub x5, x3, x2, x4
 
@@ -104,6 +113,17 @@ gameLoop:
     * character. To do this we'll 
     * use a bitmask to extract the 
     * byte we want.
+    * The bitmask works by using a logical
+    * operation to "select" the bits that
+    * we want. We can use the fact that
+    * 0 AND anything is 0 and 1 AND anything is itself
+    * to keep only the lower byte. To illustrate:
+    * 
+    *     don't want      want to keep
+    *     1 0 1 1         1 1 0 1
+    * AND 0 0 0 0         1 1 1 1
+    * ---------------------------
+    *     0 0 0 0         1 1 0 1
     **********************/
     ldr x6, =guess
     ldr x4, [x6]
@@ -126,6 +146,9 @@ gameLoop:
     * We could add another branch 
     * for the equals case, but it's
     * easier to just let it fall through
+    * In other words, if the above two 
+    * conditions are not met, execution
+    * will continue to here.
     *********************/
     /*write syscall*/
     mov x0, #1
