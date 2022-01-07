@@ -43,10 +43,11 @@ Currently supported:
   Instructions:
     **{s} means that 's' can be optionally added to the end of an
     instruction to make the result affect the flags**
-    rd = destination register
-    rn = first register operand
-    rm = second register operand
-    imm = immediate value (aka a number)
+    rd      = destination register
+    *rt/rt2 = target register*
+    rn      = first register operand
+    rm      = second register operand
+    imm     = immediate value (aka a number)
     ldp     rt, rt2, [rn]
     ldp     rt, rt2, [rn, imm]
     ldp     rt, rt2, [rn, imm]! //pre index
@@ -56,7 +57,7 @@ Currently supported:
     stp     rt, rt2, [rn, imm]! //pre index
     stp     rt, rt2, [rn], imm  //post index
     ldr     rd, =<var>
-    ldr     rd, [rn]
+    ldr     rt, [rn]
     ldr     rt, [rn, imm]
     ldr     rt, [rn, rm]
     ldr     rt, [rn, imm]! //pre index
@@ -990,7 +991,8 @@ def execute(line:str):
         label = re.findall(lab,line)[-1] + ':'
         reg['lr'] = pc
         #label_hit_counts must be updated here to count procedure calls
-        label_hit_counts[label] += 1
+        if(label in label_hit_counts.keys()):
+            label_hit_counts[label] += 1
         #behavior depends if local or external label
         if(label in linked_labels):
             linked_labels[label]()

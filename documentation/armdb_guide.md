@@ -7,7 +7,7 @@ A simple debugger interface for armsim. To run: `python armdb.py <program>.s` Th
         on a single line with its value followed by another line with the Z and N flags
     heap:
         Prints out all elements of the heap contained from the beginning of the heap to the program break (set 
-        with the brk system call). Info stored outsideof this is not displayed, even if it is technically on the 
+        with the brk system call). Info stored outside of this is not displayed, even if it is technically on the 
         heap
     stk <num>:
         Prints out the <num> top elements of the stack. If no number is specified, the default number of 
@@ -29,7 +29,7 @@ A simple debugger interface for armsim. To run: `python armdb.py <program>.s` Th
         out after executing a line or reaching a breakpoint. Illegal registers are silently ignored if they are 
         mixed in with legal registers. If only illegal registers are listed the user gets a message
     cmr <regs>:
-        This command clears the listed monitored registers. Illegal registers are silently ignored. If no 
+        Clears the listed monitored registers. Illegal registers are silently ignored. If no 
         registers are listed, ALL monitored registers are cleared
     b <nums>:
         Adds breakpoints at the INSTRUCTIONS (not source line #'s) specified. Checks that the breakpoints are 

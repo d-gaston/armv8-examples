@@ -18,16 +18,18 @@ Directives are information for an assembler. These aren't needed for writing sim
     * .8byte   (declare an array of 8 bytes words in the .data section)
     * =        (assignment of a variable to a constant value within the .data section)
     * = . -      (find the length of the previously declared item within the .data section)
-* .bss     (declare a region of unitialized data)
+* .bss     (declare a region of uninitialized data)
     * .space   (declare an empty buffer in the .bss section)
 ### Registers
 Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be explicitly named (i.e. you can't use x30 as an alias for lr, you must use lr)
 ### Instructions:
-**{s} means that 's' can be optionally added to the end of an instruction to make the result affect the flags**
-*rd = destination register*
-*rn = first register operand*
-*rm = second register operand*
-*imm = immediate value (aka a number)*
+These are the current supported instructions. The instruction formats comes from the official ARM documentation \
+**{s} means that 's' can be optionally added to the end of an instruction to make the result affect the flags** \
+*rd     = destination register* \
+*rt/rt2 = target register* \
+*rn     = first register operand* \
+*rm     = second register operand* \
+*imm    = immediate value (aka a number)* 
    
     ldp     rt, rt2, [rn]
     ldp     rt, rt2, [rn, imm]
@@ -38,7 +40,7 @@ Registers x0-28 can be used. The special registers fp, lr, sp, and xzr must be e
     stp     rt, rt2, [rn, imm]! //pre index
     stp     rt, rt2, [rn], imm  //post index
     ldr     rd, =<var>
-    ldr     rd, [rn]
+    ldr     rt, [rn]
     ldr     rt, [rn, imm]
     ldr     rt, [rn, rm]
     ldr     rt, [rn, imm]! //pre index
@@ -97,3 +99,6 @@ The debugger has been moved to a standalone program called armdb. See [the guide
 -----
 ## REPL
 There is a simple repl interface available for armsim that can be used to test out individual instructions or sequence of instructions. Currently it does not allow you to use any memory accessing instructions (such as ldr or str) but all instructions that only affect registers should work. Launch the repl by running `python armsim.py` with no files listed 
+-----
+## armsim As a Library
+armsim can be imported into another python program to be configured and executed programmatically (for use in an autograder, for example). See [this](armsim_lib.md) document for instructions on how to do so.
