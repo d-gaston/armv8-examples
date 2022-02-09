@@ -1,4 +1,4 @@
-# armsim As a Library
+# Using armsim as a Library
 --------------------
 
 Although armsim can be used as a standalone command line program, it can also be imported and used in another python program (the main use case for this is an autograder). This document describes basic usage as well as more advanced options.
