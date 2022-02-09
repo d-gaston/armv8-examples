@@ -35,3 +35,6 @@ This is a python3 simulator for a subset of arm64 instructions. It aims to be co
 
 # armdb.py
 A simple debugger interface for armsim. See [the guide](documentation/armdb_guide.md) for usage instructions.
+
+# Using armsim as a Library
+See [this guide](documentation/armdb_lib.md) for instructions on how to execute armsim from another python program.
