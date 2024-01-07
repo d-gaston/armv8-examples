@@ -57,7 +57,7 @@ armsim.require_recursion = True
 This check stops all branch instructions except for `bl` from being used. 
 ```python
 # enables dead code detection
-armsim.check_dead_code = True
+armsim.forbid_loops = True
 ```
 ### Check For Dead Code
 This check is enabled by setting a boolean variable to `True`. It looks for code following a `ret` or `b` that is not preceded by a label. This is not an exhaustive dead code check, but it covers the most common mistakes students make.
