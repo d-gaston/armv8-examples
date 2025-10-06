@@ -85,14 +85,7 @@ These are the current supported instructions. The instruction formats comes from
     svc 0        
 
     
-### Comments 
-(Must ***NOT*** be on same line as stuff you want read into the program, since the parser throws away lines with comments):
 
-    //text
-    /*text*/
-    /*
-    text
-    */
 -----
 ##  Debugger
 The debugger has been moved to a standalone program called armdb. See [the guide](armdb_guide.md) for usage instructions

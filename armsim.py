@@ -101,13 +101,6 @@ Currently supported:
     ret
     svc 0   
 
-    
-Comments (Must NOT be on same line as stuff you want read into the program):
-  //text
-  /*text*/
-  /*
-  text
-  */
 '''
 
 '''
@@ -252,6 +245,40 @@ recursive_labels = set()
 
 
 '''
+Preprocessing step to remove all comments from lines.
+Handles //, /* */, including multiline and nested cases.
+'''
+def remove_comments(lines):
+    result = []
+    in_comment = False
+
+    for line in lines:
+        cleaned = ""
+        i = 0
+        while i < len(line):
+            # end of multiline
+            if in_comment:
+                if i < len(line) - 1 and line[i:i+2] == '*/':
+                    in_comment = False
+                    i += 2
+                    continue
+                i += 1
+                continue
+            # single line
+            if i < len(line) - 1 and line[i:i+2] == '//':
+                break  # rest of line is a comment
+            # start of multiline
+            if i < len(line) - 1 and line[i:i+2] == '/*':
+                in_comment = True
+                i += 2
+                continue
+            cleaned += line[i]
+            i += 1
+        
+        result.append(cleaned)
+    return result
+
+'''
 This procedure reads the lines of a program (which can be a .s file
 or just a list of assembly instructions) and populates the
 sym_table, mem, and asm data structures. It uses
@@ -262,8 +289,10 @@ and buffers and main: or _start: for code.
 '''
 def parse(lines)->None:
     global STACK_SIZE, HEAP_SIZE, heap_pointer,original_break,brk
+    #preprocessing step to remove all comments
+    lines = remove_comments(lines)
+
     #booleans for parsing .s file
-    comment = False
     code = False
     data = False
     bss = False 
@@ -278,21 +307,17 @@ def parse(lines)->None:
     by the size of the data stored in mem
     '''
     index = len(mem)
-
-    
+  
     for line in lines:
         line = line.strip()
         #convert multiple spaces into one space 
-        line = re.sub('[ \t]+',' ',line) 
-        if('/*' in line and '*/' in line):continue
-        if('//' in line):continue
-        if("/*" in line):comment = True;continue
-        if("*/" in line):comment = False;continue
+        line = re.sub('[ \t]+',' ',line)
+        if not line: continue 
         if(".data" in line):data = True;code = False;bss = False;continue
         if(".bss" in line):data = False;code = False;bss = True;continue
         if("main:" in line or "_start:" in line):code = True;data = False;bss = False;continue
-        if(code and not comment and len(line)>0):line = line.lower();asm.append(line)
-        if((data or bss) and not comment):
+        if(code and len(line)>0):line = line.lower();asm.append(line)
+        if(data or bss):
             #remove quotes and whitespace surrouding punctuation 
             #spaces following colons and periods are not touched so
             #that string literals are not altered
